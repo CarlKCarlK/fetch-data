@@ -1,0 +1,13 @@
+[package]
+name = "fetch-hash"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+ctor = "0.1.22"
+sha2 = "0.10.2"
+base16ct = { version = "0.1.1", features = ["alloc"] }
+ureq = { version = "2.4.0", features = [] }
+thiserror = "1.0.30"
+directories = "4.0.1"
