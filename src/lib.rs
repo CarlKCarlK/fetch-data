@@ -15,7 +15,7 @@ use thiserror::Error;
 use sha2::{Digest, Sha256};
 
 // !!! cmk why to structs?
-pub struct Samples {
+struct Samples {
     cache_dir: PathBuf,
     hash_registry: HashMap<PathBuf, String>,
     url_root: String,
@@ -24,10 +24,10 @@ pub struct Samples {
 /// All possible errors returned by this library and the libraries it depends on.
 // Based on `<https://nick.groenen.me/posts/rust-error-handling/#the-library-error-type>`
 #[derive(Error, Debug)]
-pub enum BedErrorPlus {
+pub enum FetchHashError {
     #[allow(missing_docs)]
     #[error(transparent)]
-    BedError(#[from] BedError),
+    BedError(#[from] FetchHashSpecificError),
 
     #[allow(missing_docs)]
     #[error(transparent)]
@@ -39,7 +39,7 @@ pub enum BedErrorPlus {
 }
 /// All errors specific to this library.
 #[derive(Error, Debug, Clone)]
-pub enum BedError {
+pub enum FetchHashSpecificError {
     #[allow(missing_docs)]
     #[error("Unknown or bad sample file '{0}'")]
     UnknownOrBadSampleFile(String),
@@ -65,11 +65,11 @@ pub enum BedError {
     CannotCreateCacheDir(),
 }
 
-pub struct S1 {
-    mutex: Mutex<Result<Samples, BedErrorPlus>>,
+pub struct FetchHash {
+    mutex: Mutex<Result<Samples, FetchHashError>>,
 }
 
-impl S1 {
+impl FetchHash {
     pub fn new(
         sample_registry_contents: &str,
         url_root: &str,
@@ -77,10 +77,10 @@ impl S1 {
         qualifier: &str,
         organization: &str,
         application: &str,
-    ) -> S1 {
-        let cache_dir_result = S1::cache_dir(key, qualifier, organization, application);
-        S1 {
-            mutex: Mutex::new(S1::new_samples(
+    ) -> FetchHash {
+        let cache_dir_result = FetchHash::cache_dir(key, qualifier, organization, application);
+        FetchHash {
+            mutex: Mutex::new(FetchHash::new_samples(
                 sample_registry_contents,
                 url_root,
                 cache_dir_result,
@@ -88,11 +88,11 @@ impl S1 {
         }
     }
 
-    pub fn new_samples(
+    fn new_samples(
         sample_registry_contents: &str,
         url_root: &str, // !!! cmk String?
-        cache_dir_result: Result<PathBuf, BedErrorPlus>,
-    ) -> Result<Samples, BedErrorPlus> {
+        cache_dir_result: Result<PathBuf, FetchHashError>,
+    ) -> Result<Samples, FetchHashError> {
         let cache_dir = cache_dir_result?;
         let hash_registry = hash_registry(sample_registry_contents)?;
 
@@ -108,7 +108,7 @@ impl S1 {
         qualifier: &str,
         organization: &str,
         application: &str,
-    ) -> Result<PathBuf, BedErrorPlus> {
+    ) -> Result<PathBuf, FetchHashError> {
         // !!!cmk two keys?
         // Return BED_READER_DATA_DIR is present
         let cache_dir = if let Ok(cache_dir) = std::env::var(key) {
@@ -116,7 +116,7 @@ impl S1 {
         } else if let Some(proj_dirs) = ProjectDirs::from(qualifier, organization, application) {
             proj_dirs.cache_dir().to_owned()
         } else {
-            return Err(BedError::CannotCreateCacheDir().into());
+            return Err(FetchHashSpecificError::CannotCreateCacheDir().into());
         };
         if !cache_dir.exists() {
             fs::create_dir_all(&cache_dir)?;
@@ -129,9 +129,9 @@ impl S1 {
     /// A SHA256 hash is used to verify that the file is correct.
     /// The file will be in a directory determined by environment variable `BED_READER_DATA_DIR`.
     /// If that environment variable is not set, a cache folder, appropriate to the OS, will be used.
-    pub fn sample_file<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf, BedErrorPlus> {
+    pub fn fetch_file<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf, FetchHashError> {
         let path_list = vec![path.as_ref().to_path_buf()];
-        let vec = self.sample_files(path_list)?;
+        let vec = self.fetch_files(path_list)?;
         Ok(vec[0].clone())
     }
     /// Returns the local paths to a list of files. If necessary, the files will be downloaded.
@@ -139,7 +139,7 @@ impl S1 {
     /// SHA256 hashes are used to verify that the files are correct.
     /// The files will be in a directory determined by environment variable `BED_READER_DATA_DIR`.
     /// If that environment variable is not set, a cache folder, appropriate to the OS, will be used.
-    pub fn sample_files<I, P>(&self, path_list: I) -> Result<Vec<PathBuf>, BedErrorPlus>
+    pub fn fetch_files<I, P>(&self, path_list: I) -> Result<Vec<PathBuf>, FetchHashError>
     where
         I: IntoIterator<Item = P>,
         P: AsRef<Path>,
@@ -151,7 +151,9 @@ impl S1 {
         let samples = match lock.as_ref() {
             Ok(samples) => samples,
             Err(e) => {
-                return Err(BedError::SamplesConstructionFailed(e.to_string()).into());
+                return Err(
+                    FetchHashSpecificError::SamplesConstructionFailed(e.to_string()).into(),
+                );
             }
         };
         let hash_registry = &samples.hash_registry;
@@ -165,13 +167,18 @@ impl S1 {
             let path_as_string = if let Some(path_as_string) = path.to_str() {
                 path_as_string
             } else {
-                return Err(BedError::UnknownOrBadSampleFile("???".to_string()).into());
+                return Err(
+                    FetchHashSpecificError::UnknownOrBadSampleFile("???".to_string()).into(),
+                );
             };
 
             let hash = if let Some(hash) = hash_registry.get(path) {
                 hash
             } else {
-                return Err(BedError::UnknownOrBadSampleFile(path_as_string.to_string()).into());
+                return Err(FetchHashSpecificError::UnknownOrBadSampleFile(
+                    path_as_string.to_string(),
+                )
+                .into());
             };
 
             let local_path = cache_dir.join(path);
@@ -189,17 +196,20 @@ fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     url: U,
     hash: H,
     path: P,
-) -> Result<(), BedErrorPlus> {
+) -> Result<(), FetchHashError> {
     let path = path.as_ref();
     if !path.exists() {
         download(url, &path)?;
         if !path.exists() {
-            return Err(BedError::DownloadedSampleFileNotSeen(path.display().to_string()).into());
+            return Err(FetchHashSpecificError::DownloadedSampleFileNotSeen(
+                path.display().to_string(),
+            )
+            .into());
         }
     }
     let actual_hash = hash_file(&path)?;
     if !actual_hash.eq(hash.as_ref()) {
-        return Err(BedError::DownloadedSampleFileWrongHash(
+        return Err(FetchHashSpecificError::DownloadedSampleFileWrongHash(
             path.display().to_string(),
             hash.as_ref().to_string(),
             actual_hash,
@@ -209,7 +219,7 @@ fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     Ok(())
 }
 
-fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, BedErrorPlus> {
+fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchHashError> {
     let mut sha256 = Sha256::new();
     let mut file = File::open(path)?;
 
@@ -220,7 +230,7 @@ fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, BedErrorPlus> {
     Ok(hex_hash)
 }
 
-fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, file_path: P) -> Result<(), BedErrorPlus> {
+fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, file_path: P) -> Result<(), FetchHashError> {
     let req = ureq::get(url.as_ref()).call()?;
     let mut reader = req.into_reader();
     let mut file = File::create(&file_path)?;
@@ -228,7 +238,9 @@ fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, file_path: P) -> Result<(), B
     Ok(())
 }
 
-fn hash_registry(sample_registry_contents: &str) -> Result<HashMap<PathBuf, String>, BedErrorPlus> {
+fn hash_registry(
+    sample_registry_contents: &str,
+) -> Result<HashMap<PathBuf, String>, FetchHashError> {
     let mut hash_map = HashMap::new();
     for line in sample_registry_contents.lines() {
         let mut parts = line.split_whitespace();
@@ -236,15 +248,15 @@ fn hash_registry(sample_registry_contents: &str) -> Result<HashMap<PathBuf, Stri
         let url = if let Some(url) = parts.next() {
             PathBuf::from(url)
         } else {
-            return Err(BedError::SampleRegistryProblem().into());
+            return Err(FetchHashSpecificError::SampleRegistryProblem().into());
         };
         let hash = if let Some(hash) = parts.next() {
             hash.to_string()
         } else {
-            return Err(BedError::SampleRegistryProblem().into());
+            return Err(FetchHashSpecificError::SampleRegistryProblem().into());
         };
         if parts.next().is_some() {
-            return Err(BedError::SampleRegistryProblem().into());
+            return Err(FetchHashSpecificError::SampleRegistryProblem().into());
         }
 
         hash_map.insert(url, hash.to_owned());
