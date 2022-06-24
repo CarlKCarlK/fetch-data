@@ -64,13 +64,9 @@ pub enum BedError {
     CannotCreateCacheDir(),
 }
 
-// Here we set up to parse at run time. We could/should parse at compile time. See:
-// https://stackoverflow.com/questions/50553370/how-do-i-use-include-str-for-multiple-files-or-an-entire-directory
-static SAMPLE_REGISTRY_CONTENTS: &str = include_str!("../tests/registry.txt");
-
-pub fn new_samples() -> Result<Samples, BedErrorPlus> {
+pub fn new_samples(sample_registry_contents: &str) -> Result<Samples, BedErrorPlus> {
     let cache_dir = cache_dir()?;
-    let hash_registry = hash_registry()?;
+    let hash_registry = hash_registry(sample_registry_contents)?;
 
     Ok(Samples {
         cache_dir,
@@ -86,9 +82,9 @@ pub struct S1 {
 }
 
 impl S1 {
-    pub fn new() -> S1 {
+    pub fn new(sample_registry_contents: &str) -> S1 {
         S1 {
-            mutex: Mutex::new(new_samples()),
+            mutex: Mutex::new(new_samples(sample_registry_contents)),
         }
     }
 
@@ -196,9 +192,9 @@ fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, file_path: P) -> Result<(), B
     Ok(())
 }
 
-fn hash_registry() -> Result<HashMap<PathBuf, String>, BedErrorPlus> {
+fn hash_registry(sample_registry_contents: &str) -> Result<HashMap<PathBuf, String>, BedErrorPlus> {
     let mut hash_map = HashMap::new();
-    for line in SAMPLE_REGISTRY_CONTENTS.lines() {
+    for line in sample_registry_contents.lines() {
         let mut parts = line.split_whitespace();
 
         let url = if let Some(url) = parts.next() {
