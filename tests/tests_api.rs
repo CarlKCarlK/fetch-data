@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use fetch_hash::{FetchHash, FetchHashError};
 
 // Here we set up to parse at run time. We could/should parse at compile time. See:
@@ -7,16 +9,40 @@ static FETCH_HASH_REGISTRY_CONTENTS: &str = include_str!("../tests/registry.txt"
 #[ctor::ctor]
 static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
     FETCH_HASH_REGISTRY_CONTENTS,
-    "https://raw.githubusercontent.com/fastlmm/bed-reader/rustybed/bed_reader/tests/data/",
-    "BED_READER_DATA_DIR",
-    "github.io",
-    "fastlmm",
-    "bed-reader",
+    "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    "BAR_APP_DATA_DIR",
+    "com",
+    "Foo Corp",
+    "Bar App",
 );
 
 #[test]
-fn one() -> Result<(), FetchHashError> {
-    let path = STATIC_FETCH_HASH.fetch_file("small.bim")?;
-    assert!(path.exists());
+fn static_data() -> Result<(), FetchHashError> {
+    fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
+        STATIC_FETCH_HASH.fetch_file(path)
+    }
+
+    let local_path = sample_file("small.bim")?;
+    assert!(local_path.exists());
     Ok(())
 }
+
+// !!!cmk tell why new never fails
+
+#[test]
+fn just_in_time_data() -> Result<(), FetchHashError> {
+    let fetch_hash = FetchHash::new(
+        include_str!("../tests/registry.txt"),
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "BAR_APP_DATA_DIR",
+        "com",
+        "Foo Corp",
+        "Bar App",
+    );
+
+    let local_path = fetch_hash.fetch_file("empty.bed")?;
+    assert!(local_path.exists());
+    Ok(())
+}
+
+// !!! cmk show how to generate registry.txt
