@@ -14,6 +14,7 @@ use thiserror::Error;
 
 use sha2::{Digest, Sha256};
 
+// !!! cmk why to structs?
 pub struct Samples {
     cache_dir: PathBuf,
     hash_registry: HashMap<PathBuf, String>,
@@ -64,28 +65,63 @@ pub enum BedError {
     CannotCreateCacheDir(),
 }
 
-pub fn new_samples(sample_registry_contents: &str) -> Result<Samples, BedErrorPlus> {
-    let cache_dir = cache_dir()?;
-    let hash_registry = hash_registry(sample_registry_contents)?;
-
-    Ok(Samples {
-        cache_dir,
-        hash_registry,
-        url_root:
-            "https://raw.githubusercontent.com/fastlmm/bed-reader/rustybed/bed_reader/tests/data/"
-                .to_string(),
-    })
-}
-
 pub struct S1 {
     mutex: Mutex<Result<Samples, BedErrorPlus>>,
 }
 
 impl S1 {
-    pub fn new(sample_registry_contents: &str) -> S1 {
+    pub fn new(
+        sample_registry_contents: &str,
+        url_root: &str,
+        key: &str, // !!! cmk call this environment_key?
+        qualifier: &str,
+        organization: &str,
+        application: &str,
+    ) -> S1 {
+        let cache_dir_result = S1::cache_dir(key, qualifier, organization, application);
         S1 {
-            mutex: Mutex::new(new_samples(sample_registry_contents)),
+            mutex: Mutex::new(S1::new_samples(
+                sample_registry_contents,
+                url_root,
+                cache_dir_result,
+            )),
         }
+    }
+
+    pub fn new_samples(
+        sample_registry_contents: &str,
+        url_root: &str, // !!! cmk String?
+        cache_dir_result: Result<PathBuf, BedErrorPlus>,
+    ) -> Result<Samples, BedErrorPlus> {
+        let cache_dir = cache_dir_result?;
+        let hash_registry = hash_registry(sample_registry_contents)?;
+
+        Ok(Samples {
+            cache_dir,
+            hash_registry,
+            url_root: url_root.to_string(),
+        })
+    }
+
+    fn cache_dir(
+        key: &str,
+        qualifier: &str,
+        organization: &str,
+        application: &str,
+    ) -> Result<PathBuf, BedErrorPlus> {
+        // !!!cmk two keys?
+        // Return BED_READER_DATA_DIR is present
+        let cache_dir = if let Ok(cache_dir) = std::env::var(key) {
+            PathBuf::from(cache_dir)
+        } else if let Some(proj_dirs) = ProjectDirs::from(qualifier, organization, application) {
+            proj_dirs.cache_dir().to_owned()
+        } else {
+            return Err(BedError::CannotCreateCacheDir().into());
+        };
+        if !cache_dir.exists() {
+            fs::create_dir_all(&cache_dir)?;
+        }
+        Ok(cache_dir)
     }
 
     /// Returns the local path to a sample file. If necessary, the file will be downloaded.
@@ -215,30 +251,3 @@ fn hash_registry(sample_registry_contents: &str) -> Result<HashMap<PathBuf, Stri
     }
     Ok(hash_map)
 }
-
-fn cache_dir() -> Result<PathBuf, BedErrorPlus> {
-    // Return BED_READER_DATA_DIR is present
-    let cache_dir = if let Ok(cache_dir) = std::env::var("BED_READER_DATA_DIR") {
-        PathBuf::from(cache_dir)
-    } else if let Some(proj_dirs) = ProjectDirs::from("github.io", "fastlmm", "bed-reader") {
-        proj_dirs.cache_dir().to_owned()
-    } else {
-        return Err(BedError::CannotCreateCacheDir().into());
-    };
-    if !cache_dir.exists() {
-        fs::create_dir_all(&cache_dir)?;
-    }
-    Ok(cache_dir)
-}
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::{sample_file, BedErrorPlus};
-
-//     #[test]
-//     fn one() -> Result<(), BedErrorPlus> {
-//         let path = sample_file("small.bim")?;
-//         assert!(path.exists());
-//         Ok(())
-//     }
-// }
