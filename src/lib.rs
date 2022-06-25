@@ -6,7 +6,7 @@
 use directories::ProjectDirs;
 use std::{
     collections::HashMap,
-    fs::{self, File},
+    fs::{self, read_dir, File},
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -309,4 +309,13 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Fe
         hash_map.insert(url, hash.to_owned());
     }
     Ok(hash_map)
+}
+
+pub fn dir_to_file_list<P: AsRef<Path>>(
+    path: P,
+) -> Result<Vec<std::ffi::OsString>, FetchHashError> {
+    let file_list = read_dir(path)?
+        .map(|res| res.map(|e| e.file_name()))
+        .collect::<Result<Vec<_>, std::io::Error>>()?;
+    Ok(file_list)
 }

@@ -1,9 +1,6 @@
-use std::{
-    fs::read_dir,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
-use fetch_hash::{FetchHash, FetchHashError};
+use fetch_hash::{dir_to_file_list, FetchHash, FetchHashError};
 
 // Here we set up to parse at run time. We could/should parse at compile time. See:
 // https://stackoverflow.com/questions/50553370/how-do-i-use-include-str-for-multiple-files-or-an-entire-directory
@@ -61,14 +58,8 @@ fn create_registry_file() -> Result<(), FetchHashError> {
         "Bar App",
     );
 
-    let file_list = read_dir("tests/data")?
-        .map(|res| res.map(|e| e.file_name()))
-        .collect::<Result<Vec<_>, std::io::Error>>()?;
-
-    println!("{:?}", file_list);
-
+    let file_list = dir_to_file_list("tests/data")?;
     let registry_contents = fetch_hash.gen_registry_contents(file_list)?;
-    // !!! cmk assert_eq!(registry_contents, FETCH_HASH_REGISTRY_CONTENTS);
     println!("{registry_contents}");
     Ok(())
 }
