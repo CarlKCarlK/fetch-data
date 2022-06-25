@@ -1,8 +1,5 @@
 // !!!cmk #![warn(missing_docs)]
 
-// !!! cmk rename Samples and BedError BED_READER bedreader bed-reader
-// !!! cmk rename this project to be fetch-hash
-
 use directories::ProjectDirs;
 use std::{
     collections::HashMap,
@@ -14,89 +11,25 @@ use thiserror::Error;
 
 use sha2::{Digest, Sha256};
 
-// !!! cmk why to structs?
-struct Samples {
+struct Internals {
     cache_dir: PathBuf,
     hash_registry: HashMap<PathBuf, String>,
     url_root: String,
 }
 
-/// All possible errors returned by this library and the libraries it depends on.
-// Based on `<https://nick.groenen.me/posts/rust-error-handling/#the-library-error-type>`
-#[derive(Error, Debug)]
-pub enum FetchHashError {
-    #[allow(missing_docs)]
-    #[error(transparent)]
-    BedError(#[from] FetchHashSpecificError),
-
-    #[allow(missing_docs)]
-    #[error(transparent)]
-    IOError(#[from] std::io::Error),
-
-    #[allow(missing_docs)]
-    #[error(transparent)]
-    UreqError(#[from] ureq::Error),
-}
-/// All errors specific to this library.
-#[derive(Error, Debug, Clone)]
-pub enum FetchHashSpecificError {
-    #[allow(missing_docs)]
-    #[error("Unknown or bad sample file '{0}'")]
-    UnknownOrBadSampleFile(String),
-
-    #[allow(missing_docs)]
-    #[error("The registry of sample files is invalid")]
-    SampleRegistryProblem(),
-
-    #[allow(missing_docs)]
-    #[error("Samples construction failed with error: {0}")]
-    SamplesConstructionFailed(String),
-
-    #[allow(missing_docs)]
-    #[error("Downloaded sample file not seen: {0}")]
-    DownloadedSampleFileNotSeen(String),
-
-    #[allow(missing_docs)]
-    #[error("Downloaded sample file has wrong hash: {0},expected: {1}, actual: {2}")]
-    DownloadedSampleFileWrongHash(String, String, String),
-
-    #[allow(missing_docs)]
-    #[error("Cannot create cache directory")]
-    CannotCreateCacheDir(),
-}
-
-pub struct FetchHash {
-    mutex: Mutex<Result<Samples, FetchHashError>>,
-}
-
-impl FetchHash {
-    pub fn new(
+impl Internals {
+    fn new(
         registry_contents: &str,
-        url_root: &str,
-        key: &str, // !!! cmk call this environment_key?
+        url_root: &str, // !!! cmk String?
+        key: &str,      // !!! cmk call this environment_key?
         qualifier: &str,
         organization: &str,
         application: &str,
-    ) -> FetchHash {
-        let cache_dir_result = FetchHash::cache_dir(key, qualifier, organization, application);
-        FetchHash {
-            mutex: Mutex::new(FetchHash::new_samples(
-                registry_contents,
-                url_root,
-                cache_dir_result,
-            )),
-        }
-    }
-
-    fn new_samples(
-        registry_contents: &str,
-        url_root: &str, // !!! cmk String?
-        cache_dir_result: Result<PathBuf, FetchHashError>,
-    ) -> Result<Samples, FetchHashError> {
-        let cache_dir = cache_dir_result?;
+    ) -> Result<Internals, FetchHashError> {
+        let cache_dir = Internals::cache_dir(key, qualifier, organization, application)?;
         let hash_registry = hash_registry(registry_contents)?;
 
-        Ok(Samples {
+        Ok(Internals {
             cache_dir,
             hash_registry,
             url_root: url_root.to_string(),
@@ -123,6 +56,76 @@ impl FetchHash {
         }
         Ok(cache_dir)
     }
+}
+
+/// All possible errors returned by this library and the libraries it depends on.
+// Based on `<https://nick.groenen.me/posts/rust-error-handling/#the-library-error-type>`
+#[derive(Error, Debug)]
+pub enum FetchHashError {
+    #[allow(missing_docs)]
+    #[error(transparent)]
+    BedError(#[from] FetchHashSpecificError),
+
+    #[allow(missing_docs)]
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+
+    #[allow(missing_docs)]
+    #[error(transparent)]
+    UreqError(#[from] ureq::Error),
+}
+/// All errors specific to this library.
+#[derive(Error, Debug, Clone)]
+pub enum FetchHashSpecificError {
+    #[allow(missing_docs)]
+    #[error("Unknown or bad file '{0}'")]
+    UnknownOrBadFile(String),
+
+    #[allow(missing_docs)]
+    #[error("The registry of files is invalid")]
+    RegistryProblem(),
+
+    #[allow(missing_docs)]
+    #[error("FetchHash new failed with error: {0}")]
+    FetchHashNewFailed(String),
+
+    #[allow(missing_docs)]
+    #[error("Downloaded file not seen: {0}")]
+    DownloadedFileNotSeen(String),
+
+    #[allow(missing_docs)]
+    #[error("Downloaded file has wrong hash: {0},expected: {1}, actual: {2}")]
+    DownloadedFileWrongHash(String, String, String),
+
+    #[allow(missing_docs)]
+    #[error("Cannot create cache directory")]
+    CannotCreateCacheDir(),
+}
+
+pub struct FetchHash {
+    mutex: Mutex<Result<Internals, FetchHashError>>,
+}
+
+impl FetchHash {
+    pub fn new(
+        registry_contents: &str,
+        url_root: &str,
+        key: &str, // !!! cmk call this environment_key?
+        qualifier: &str,
+        organization: &str,
+        application: &str,
+    ) -> FetchHash {
+        FetchHash {
+            mutex: Mutex::new(Internals::new(
+                registry_contents,
+                url_root,
+                key,
+                qualifier,
+                organization,
+                application,
+            )),
+        }
+    }
 
     pub fn gen_registry_contents<I, P>(&self, path_list: I) -> Result<String, FetchHashError>
     where
@@ -133,17 +136,15 @@ impl FetchHash {
             Ok(lock) => lock,
             Err(err) => err.into_inner(),
         };
-        let samples = match lock.as_ref() {
-            Ok(samples) => samples,
+        let internals = match lock.as_ref() {
+            Ok(internals) => internals,
             Err(e) => {
-                return Err(
-                    FetchHashSpecificError::SamplesConstructionFailed(e.to_string()).into(),
-                );
+                return Err(FetchHashSpecificError::FetchHashNewFailed(e.to_string()).into());
             }
         };
 
-        let cache_dir = &samples.cache_dir;
-        let url_root = &samples.url_root;
+        let cache_dir = &internals.cache_dir;
+        let url_root = &internals.url_root;
 
         let mut s = String::new();
         for path in path_list {
@@ -152,16 +153,14 @@ impl FetchHash {
             let path_as_string = if let Some(path_as_string) = path.to_str() {
                 path_as_string
             } else {
-                return Err(
-                    FetchHashSpecificError::UnknownOrBadSampleFile("???".to_string()).into(),
-                );
+                return Err(FetchHashSpecificError::UnknownOrBadFile("???".to_string()).into());
             };
 
             let local_path = cache_dir.join(path);
             let url = format!("{url_root}{path_as_string}");
             download(url, &local_path)?;
             if !local_path.exists() {
-                return Err(FetchHashSpecificError::DownloadedSampleFileNotSeen(
+                return Err(FetchHashSpecificError::DownloadedFileNotSeen(
                     local_path.display().to_string(),
                 )
                 .into());
@@ -173,7 +172,7 @@ impl FetchHash {
         Ok(s)
     }
 
-    /// Returns the local path to a sample file. If necessary, the file will be downloaded.
+    /// Returns the local path to a file. If necessary, the file will be downloaded.
     ///
     /// A SHA256 hash is used to verify that the file is correct.
     /// The file will be in a directory determined by environment variable `BED_READER_DATA_DIR`.
@@ -197,17 +196,15 @@ impl FetchHash {
             Ok(lock) => lock,
             Err(err) => err.into_inner(),
         };
-        let samples = match lock.as_ref() {
-            Ok(samples) => samples,
+        let internals = match lock.as_ref() {
+            Ok(internals) => internals,
             Err(e) => {
-                return Err(
-                    FetchHashSpecificError::SamplesConstructionFailed(e.to_string()).into(),
-                );
+                return Err(FetchHashSpecificError::FetchHashNewFailed(e.to_string()).into());
             }
         };
-        let hash_registry = &samples.hash_registry;
-        let cache_dir = &samples.cache_dir;
-        let url_root = &samples.url_root;
+        let hash_registry = &internals.hash_registry;
+        let cache_dir = &internals.cache_dir;
+        let url_root = &internals.url_root;
 
         let mut local_list: Vec<PathBuf> = Vec::new();
         for path in path_list {
@@ -216,18 +213,15 @@ impl FetchHash {
             let path_as_string = if let Some(path_as_string) = path.to_str() {
                 path_as_string
             } else {
-                return Err(
-                    FetchHashSpecificError::UnknownOrBadSampleFile("???".to_string()).into(),
-                );
+                return Err(FetchHashSpecificError::UnknownOrBadFile("???".to_string()).into());
             };
 
             let hash = if let Some(hash) = hash_registry.get(path) {
                 hash
             } else {
-                return Err(FetchHashSpecificError::UnknownOrBadSampleFile(
-                    path_as_string.to_string(),
-                )
-                .into());
+                return Err(
+                    FetchHashSpecificError::UnknownOrBadFile(path_as_string.to_string()).into(),
+                );
             };
 
             let local_path = cache_dir.join(path);
@@ -250,15 +244,14 @@ fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     if !path.exists() {
         download(url, &path)?;
         if !path.exists() {
-            return Err(FetchHashSpecificError::DownloadedSampleFileNotSeen(
-                path.display().to_string(),
-            )
-            .into());
+            return Err(
+                FetchHashSpecificError::DownloadedFileNotSeen(path.display().to_string()).into(),
+            );
         }
     }
     let actual_hash = hash_file(&path)?;
     if !actual_hash.eq(hash.as_ref()) {
-        return Err(FetchHashSpecificError::DownloadedSampleFileWrongHash(
+        return Err(FetchHashSpecificError::DownloadedFileWrongHash(
             path.display().to_string(),
             hash.as_ref().to_string(),
             actual_hash,
@@ -295,15 +288,15 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Fe
         let url = if let Some(url) = parts.next() {
             PathBuf::from(url)
         } else {
-            return Err(FetchHashSpecificError::SampleRegistryProblem().into());
+            return Err(FetchHashSpecificError::RegistryProblem().into());
         };
         let hash = if let Some(hash) = parts.next() {
             hash.to_string()
         } else {
-            return Err(FetchHashSpecificError::SampleRegistryProblem().into());
+            return Err(FetchHashSpecificError::RegistryProblem().into());
         };
         if parts.next().is_some() {
-            return Err(FetchHashSpecificError::SampleRegistryProblem().into());
+            return Err(FetchHashSpecificError::RegistryProblem().into());
         }
 
         hash_map.insert(url, hash.to_owned());

@@ -1,6 +1,5 @@
-use std::path::{Path, PathBuf};
-
 use fetch_hash::{dir_to_file_list, FetchHash, FetchHashError};
+use std::path::{Path, PathBuf};
 
 // Here we set up to parse at run time. We could/should parse at compile time. See:
 // https://stackoverflow.com/questions/50553370/how-do-i-use-include-str-for-multiple-files-or-an-entire-directory
