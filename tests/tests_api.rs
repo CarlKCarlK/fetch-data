@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs::read_dir,
+    path::{Path, PathBuf},
+};
 
 use fetch_hash::{FetchHash, FetchHashError};
 
@@ -42,6 +45,31 @@ fn just_in_time_data() -> Result<(), FetchHashError> {
 
     let local_path = fetch_hash.fetch_file("empty.bed")?;
     assert!(local_path.exists());
+    Ok(())
+}
+
+#[test]
+fn create_registry_file() -> Result<(), FetchHashError> {
+    // Create list of files in data directory
+
+    let fetch_hash = FetchHash::new(
+        "",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "BAR_APP_DATA_DIR",
+        "com",
+        "Foo Corp",
+        "Bar App",
+    );
+
+    let file_list = read_dir("tests/data")?
+        .map(|res| res.map(|e| e.file_name()))
+        .collect::<Result<Vec<_>, std::io::Error>>()?;
+
+    println!("{:?}", file_list);
+
+    let registry_contents = fetch_hash.gen_registry_contents(file_list)?;
+    // !!! cmk assert_eq!(registry_contents, FETCH_HASH_REGISTRY_CONTENTS);
+    println!("{registry_contents}");
     Ok(())
 }
 

@@ -71,7 +71,7 @@ pub struct FetchHash {
 
 impl FetchHash {
     pub fn new(
-        sample_registry_contents: &str,
+        registry_contents: &str,
         url_root: &str,
         key: &str, // !!! cmk call this environment_key?
         qualifier: &str,
@@ -81,7 +81,7 @@ impl FetchHash {
         let cache_dir_result = FetchHash::cache_dir(key, qualifier, organization, application);
         FetchHash {
             mutex: Mutex::new(FetchHash::new_samples(
-                sample_registry_contents,
+                registry_contents,
                 url_root,
                 cache_dir_result,
             )),
@@ -89,12 +89,12 @@ impl FetchHash {
     }
 
     fn new_samples(
-        sample_registry_contents: &str,
+        registry_contents: &str,
         url_root: &str, // !!! cmk String?
         cache_dir_result: Result<PathBuf, FetchHashError>,
     ) -> Result<Samples, FetchHashError> {
         let cache_dir = cache_dir_result?;
-        let hash_registry = hash_registry(sample_registry_contents)?;
+        let hash_registry = hash_registry(registry_contents)?;
 
         Ok(Samples {
             cache_dir,
@@ -122,6 +122,55 @@ impl FetchHash {
             fs::create_dir_all(&cache_dir)?;
         }
         Ok(cache_dir)
+    }
+
+    pub fn gen_registry_contents<I, P>(&self, path_list: I) -> Result<String, FetchHashError>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<Path>,
+    {
+        let lock = match self.mutex.lock() {
+            Ok(lock) => lock,
+            Err(err) => err.into_inner(),
+        };
+        let samples = match lock.as_ref() {
+            Ok(samples) => samples,
+            Err(e) => {
+                return Err(
+                    FetchHashSpecificError::SamplesConstructionFailed(e.to_string()).into(),
+                );
+            }
+        };
+
+        let cache_dir = &samples.cache_dir;
+        let url_root = &samples.url_root;
+
+        let mut s = String::new();
+        for path in path_list {
+            let path = path.as_ref();
+
+            let path_as_string = if let Some(path_as_string) = path.to_str() {
+                path_as_string
+            } else {
+                return Err(
+                    FetchHashSpecificError::UnknownOrBadSampleFile("???".to_string()).into(),
+                );
+            };
+
+            let local_path = cache_dir.join(path);
+            let url = format!("{url_root}{path_as_string}");
+            download(url, &local_path)?;
+            if !local_path.exists() {
+                return Err(FetchHashSpecificError::DownloadedSampleFileNotSeen(
+                    local_path.display().to_string(),
+                )
+                .into());
+            }
+            let hash = hash_file(&local_path)?;
+            s.push_str(&format!("{} {hash}\n", path.display()));
+        }
+
+        Ok(s)
     }
 
     /// Returns the local path to a sample file. If necessary, the file will be downloaded.
@@ -238,11 +287,9 @@ fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, file_path: P) -> Result<(), F
     Ok(())
 }
 
-fn hash_registry(
-    sample_registry_contents: &str,
-) -> Result<HashMap<PathBuf, String>, FetchHashError> {
+fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, FetchHashError> {
     let mut hash_map = HashMap::new();
-    for line in sample_registry_contents.lines() {
+    for line in registry_contents.lines() {
         let mut parts = line.split_whitespace();
 
         let url = if let Some(url) = parts.next() {
