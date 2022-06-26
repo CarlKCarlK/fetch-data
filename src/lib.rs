@@ -41,10 +41,7 @@ impl FetchHash {
         I: IntoIterator<Item = P>,
         P: AsRef<Path>,
     {
-        let lock = match self.mutex.lock() {
-            Ok(lock) => lock,
-            Err(err) => err.into_inner(),
-        };
+        let lock = self.lock();
         let internals = match lock.as_ref() {
             Ok(internals) => internals,
             Err(e) => {
@@ -81,6 +78,14 @@ impl FetchHash {
         Ok(s)
     }
 
+    fn lock(&self) -> std::sync::MutexGuard<Result<Internals, FetchHashError>> {
+        let lock = match self.mutex.lock() {
+            Ok(lock) => lock,
+            Err(err) => err.into_inner(),
+        };
+        lock
+    }
+
     /// Returns the local path to a file. If necessary, the file will be downloaded.
     ///
     /// A SHA256 hash is used to verify that the file is correct.
@@ -101,16 +106,8 @@ impl FetchHash {
         I: IntoIterator<Item = P>,
         P: AsRef<Path>,
     {
-        let lock = match self.mutex.lock() {
-            Ok(lock) => lock,
-            Err(err) => err.into_inner(),
-        };
-        let internals = match lock.as_ref() {
-            Ok(internals) => internals,
-            Err(e) => {
-                return Err(FetchHashSpecificError::FetchHashNewFailed(e.to_string()).into());
-            }
-        };
+        let lock = self.lock();
+        let internals = FetchHash::internals(lock.as_ref())?;
         let hash_registry = &internals.hash_registry;
         let cache_dir = &internals.cache_dir;
         let url_root = &internals.url_root;
@@ -140,6 +137,15 @@ impl FetchHash {
         }
 
         Ok(local_list)
+    }
+
+    fn internals<'a>(
+        lock_ref: Result<&'a Internals, &FetchHashError>,
+    ) -> Result<&'a Internals, FetchHashError> {
+        match lock_ref {
+            Ok(internals) => Ok(internals),
+            Err(e) => Err(FetchHashSpecificError::FetchHashNewFailed(e.to_string()).into()),
+        }
     }
 }
 
