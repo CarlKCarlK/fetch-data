@@ -42,13 +42,7 @@ impl FetchHash {
         P: AsRef<Path>,
     {
         let lock = self.lock();
-        let internals = match lock.as_ref() {
-            Ok(internals) => internals,
-            Err(e) => {
-                return Err(FetchHashSpecificError::FetchHashNewFailed(e.to_string()).into());
-            }
-        };
-
+        let internals = FetchHash::internals(lock.as_ref())?;
         let cache_dir = &internals.cache_dir;
         let url_root = &internals.url_root;
 
