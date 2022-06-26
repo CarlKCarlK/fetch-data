@@ -1,13 +1,15 @@
-use fetch_hash::{dir_to_file_list, fetch, hash_download, tmp_path, FetchHash, FetchHashError};
+use fetch_hash::{
+    ctor, dir_to_file_list, fetch, hash_download, tmp_path, FetchHash, FetchHashError,
+};
 use std::path::{Path, PathBuf};
 
-// Here we set up to parse at run time. We could/should parse at compile time. See:
+// cmk Here we set up to parse at run time. We could/should parse at compile time. See:
 // https://stackoverflow.com/questions/50553370/how-do-i-use-include-str-for-multiple-files-or-an-entire-directory
-static FETCH_HASH_REGISTRY_CONTENTS: &str = include_str!("../tests/registry.txt");
 
-#[ctor::ctor]
+// !!!cmk do users need to bring in ctor, too?
+#[ctor]
 static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
-    FETCH_HASH_REGISTRY_CONTENTS,
+    include_str!("../tests/registry.txt"),
     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
     "BAR_APP_DATA_DIR",
     "com",

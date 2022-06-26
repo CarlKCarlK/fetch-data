@@ -1,6 +1,8 @@
 // !!!cmk #![warn(missing_docs)]
 
+pub use ctor::ctor;
 use directories::ProjectDirs;
+
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
@@ -59,12 +61,6 @@ impl FetchHash {
             let local_path = cache_dir.join(path);
             let url = format!("{url_root}{path_as_string}");
             download(url, &local_path)?;
-            if !local_path.exists() {
-                return Err(FetchHashSpecificError::DownloadedFileNotSeen(
-                    local_path.display().to_string(),
-                )
-                .into());
-            }
             let hash = hash_file(&local_path)?;
             s.push_str(&format!("{} {hash}\n", path.display()));
         }
@@ -187,7 +183,6 @@ pub enum FetchHashSpecificError {
     CannotCreateCacheDir(),
 }
 
-// !!!cmk also make a utility function to find hash from url
 // https://stackoverflow.com/questions/58006033/how-to-run-setup-code-before-any-tests-run-in-rust
 pub fn fetch<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     url: U,
