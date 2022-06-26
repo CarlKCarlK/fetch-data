@@ -11,3 +11,4 @@ base16ct = { version = "0.1.1", features = ["alloc"] }
 ureq = { version = "2.4.0", features = [] }
 thiserror = "1.0.30"
 directories = "4.0.1"
+temp_testdir = "0.2.3"

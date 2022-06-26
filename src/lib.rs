@@ -1,106 +1,15 @@
 // !!!cmk #![warn(missing_docs)]
 
 use directories::ProjectDirs;
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs::{self, read_dir, File},
     path::{Path, PathBuf},
     sync::Mutex,
 };
+use temp_testdir::TempDir;
 use thiserror::Error;
-
-use sha2::{Digest, Sha256};
-
-struct Internals {
-    cache_dir: PathBuf,
-    hash_registry: HashMap<PathBuf, String>,
-    url_root: String,
-}
-
-impl Internals {
-    fn new(
-        registry_contents: &str,
-        url_root: &str, // !!! cmk String?
-        key: &str,      // !!! cmk call this environment_key?
-        qualifier: &str,
-        organization: &str,
-        application: &str,
-    ) -> Result<Internals, FetchHashError> {
-        let cache_dir = Internals::cache_dir(key, qualifier, organization, application)?;
-        let hash_registry = hash_registry(registry_contents)?;
-
-        Ok(Internals {
-            cache_dir,
-            hash_registry,
-            url_root: url_root.to_string(),
-        })
-    }
-
-    fn cache_dir(
-        key: &str,
-        qualifier: &str,
-        organization: &str,
-        application: &str,
-    ) -> Result<PathBuf, FetchHashError> {
-        // !!!cmk two keys?
-        // Return BED_READER_DATA_DIR is present
-        let cache_dir = if let Ok(cache_dir) = std::env::var(key) {
-            PathBuf::from(cache_dir)
-        } else if let Some(proj_dirs) = ProjectDirs::from(qualifier, organization, application) {
-            proj_dirs.cache_dir().to_owned()
-        } else {
-            return Err(FetchHashSpecificError::CannotCreateCacheDir().into());
-        };
-        if !cache_dir.exists() {
-            fs::create_dir_all(&cache_dir)?;
-        }
-        Ok(cache_dir)
-    }
-}
-
-/// All possible errors returned by this library and the libraries it depends on.
-// Based on `<https://nick.groenen.me/posts/rust-error-handling/#the-library-error-type>`
-#[derive(Error, Debug)]
-pub enum FetchHashError {
-    #[allow(missing_docs)]
-    #[error(transparent)]
-    BedError(#[from] FetchHashSpecificError),
-
-    #[allow(missing_docs)]
-    #[error(transparent)]
-    IOError(#[from] std::io::Error),
-
-    #[allow(missing_docs)]
-    #[error(transparent)]
-    UreqError(#[from] ureq::Error),
-}
-/// All errors specific to this library.
-#[derive(Error, Debug, Clone)]
-pub enum FetchHashSpecificError {
-    #[allow(missing_docs)]
-    #[error("Unknown or bad file '{0}'")]
-    UnknownOrBadFile(String),
-
-    #[allow(missing_docs)]
-    #[error("The registry of files is invalid")]
-    RegistryProblem(),
-
-    #[allow(missing_docs)]
-    #[error("FetchHash new failed with error: {0}")]
-    FetchHashNewFailed(String),
-
-    #[allow(missing_docs)]
-    #[error("Downloaded file not seen: {0}")]
-    DownloadedFileNotSeen(String),
-
-    #[allow(missing_docs)]
-    #[error("Downloaded file has wrong hash: {0},expected: {1}, actual: {2}")]
-    DownloadedFileWrongHash(String, String, String),
-
-    #[allow(missing_docs)]
-    #[error("Cannot create cache directory")]
-    CannotCreateCacheDir(),
-}
 
 pub struct FetchHash {
     mutex: Mutex<Result<Internals, FetchHashError>>,
@@ -109,8 +18,8 @@ pub struct FetchHash {
 impl FetchHash {
     pub fn new(
         registry_contents: &str,
-        url_root: &str,
-        key: &str, // !!! cmk call this environment_key?
+        url_root: &str, // !!! cmk String?
+        env_key: &str,
         qualifier: &str,
         organization: &str,
         application: &str,
@@ -119,7 +28,7 @@ impl FetchHash {
             mutex: Mutex::new(Internals::new(
                 registry_contents,
                 url_root,
-                key,
+                env_key,
                 qualifier,
                 organization,
                 application,
@@ -234,8 +143,52 @@ impl FetchHash {
     }
 }
 
+/// All possible errors returned by this library and the libraries it depends on.
+// Based on `<https://nick.groenen.me/posts/rust-error-handling/#the-library-error-type>`
+#[derive(Error, Debug)]
+pub enum FetchHashError {
+    #[allow(missing_docs)]
+    #[error(transparent)]
+    BedError(#[from] FetchHashSpecificError),
+
+    #[allow(missing_docs)]
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+
+    #[allow(missing_docs)]
+    #[error(transparent)]
+    UreqError(#[from] ureq::Error),
+}
+/// All errors specific to this library.
+#[derive(Error, Debug, Clone)]
+pub enum FetchHashSpecificError {
+    #[allow(missing_docs)]
+    #[error("Unknown or bad file '{0}'")]
+    UnknownOrBadFile(String),
+
+    #[allow(missing_docs)]
+    #[error("The registry of files is invalid")]
+    RegistryProblem(),
+
+    #[allow(missing_docs)]
+    #[error("FetchHash new failed with error: {0}")]
+    FetchHashNewFailed(String),
+
+    #[allow(missing_docs)]
+    #[error("Downloaded file not seen: {0}")]
+    DownloadedFileNotSeen(String),
+
+    #[allow(missing_docs)]
+    #[error("Downloaded file has wrong hash: {0},expected: {1}, actual: {2}")]
+    DownloadedFileWrongHash(String, String, String),
+
+    #[allow(missing_docs)]
+    #[error("Cannot create cache directory")]
+    CannotCreateCacheDir(),
+}
+
 // https://stackoverflow.com/questions/58006033/how-to-run-setup-code-before-any-tests-run-in-rust
-fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
+pub fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     url: U,
     hash: H,
     path: P,
@@ -311,4 +264,71 @@ pub fn dir_to_file_list<P: AsRef<Path>>(
         .map(|res| res.map(|e| e.file_name()))
         .collect::<Result<Vec<_>, std::io::Error>>()?;
     Ok(file_list)
+}
+struct Internals {
+    cache_dir: PathBuf,
+    hash_registry: HashMap<PathBuf, String>,
+    url_root: String,
+}
+
+impl Internals {
+    fn new(
+        registry_contents: &str,
+        url_root: &str, // !!! cmk String?
+        env_key: &str,
+        qualifier: &str,
+        organization: &str,
+        application: &str,
+    ) -> Result<Internals, FetchHashError> {
+        let cache_dir = Internals::cache_dir(env_key, qualifier, organization, application)?;
+        let hash_registry = hash_registry(registry_contents)?;
+
+        Ok(Internals {
+            cache_dir,
+            hash_registry,
+            url_root: url_root.to_string(),
+        })
+    }
+
+    fn cache_dir(
+        env_key: &str,
+        qualifier: &str,
+        organization: &str,
+        application: &str,
+    ) -> Result<PathBuf, FetchHashError> {
+        let cache_dir = if let Ok(cache_dir) = std::env::var(env_key) {
+            PathBuf::from(cache_dir)
+        } else if let Some(proj_dirs) = ProjectDirs::from(qualifier, organization, application) {
+            proj_dirs.cache_dir().to_owned()
+        } else {
+            return Err(FetchHashSpecificError::CannotCreateCacheDir().into());
+        };
+        if !cache_dir.exists() {
+            fs::create_dir_all(&cache_dir)?;
+        }
+        Ok(cache_dir)
+    }
+}
+
+/// Return a path to a temporary directory. //!!!cmk update example
+///
+/// # Example
+/// ```
+// / use ndarray as nd;
+// / use bed_reader::{tmp_path, WriteOptions};
+// / let output_folder = tmp_path()?;
+// / let output_file = output_folder.join("small.bed");
+// / let val = nd::array![
+// /     [1.0, 0.0, f64::NAN, 0.0],
+// /     [2.0, 0.0, f64::NAN, 2.0],
+// /     [0.0, 1.0, 2.0, 0.0]
+// / ];
+// / WriteOptions::builder(output_file).write(&val)?;
+// / # use bed_reader::BedErrorPlus;
+// / # Ok::<(), BedErrorPlus>(())
+/// ```
+pub fn tmp_path() -> Result<PathBuf, FetchHashError> {
+    let output_path = TempDir::default().as_ref().to_owned();
+    fs::create_dir(&output_path)?;
+    Ok(output_path)
 }

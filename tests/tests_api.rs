@@ -1,4 +1,4 @@
-use fetch_hash::{dir_to_file_list, FetchHash, FetchHashError};
+use fetch_hash::{dir_to_file_list, download_hash, tmp_path, FetchHash, FetchHashError};
 use std::path::{Path, PathBuf};
 
 // Here we set up to parse at run time. We could/should parse at compile time. See:
@@ -63,4 +63,16 @@ fn create_registry_file() -> Result<(), FetchHashError> {
     Ok(())
 }
 
-// !!! cmk show how to generate registry.txt
+#[test]
+fn test_download_hash() -> Result<(), FetchHashError> {
+    let temp_out = tmp_path()?;
+    let output_file = temp_out.join("test_download_hash.fam");
+    download_hash(
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        "36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2",
+        &output_file,
+    )?;
+    assert!(output_file.exists());
+
+    Ok(())
+}
