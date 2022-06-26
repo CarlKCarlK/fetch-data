@@ -1,4 +1,4 @@
-use fetch_hash::{dir_to_file_list, download_hash, tmp_path, FetchHash, FetchHashError};
+use fetch_hash::{dir_to_file_list, fetch, hash_download, tmp_path, FetchHash, FetchHashError};
 use std::path::{Path, PathBuf};
 
 // Here we set up to parse at run time. We could/should parse at compile time. See:
@@ -64,10 +64,10 @@ fn create_registry_file() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn test_download_hash() -> Result<(), FetchHashError> {
+fn one_off_fetch() -> Result<(), FetchHashError> {
     let temp_out = tmp_path()?;
     let output_file = temp_out.join("test_download_hash.fam");
-    download_hash(
+    fetch(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
         "36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2",
         &output_file,
@@ -76,3 +76,16 @@ fn test_download_hash() -> Result<(), FetchHashError> {
 
     Ok(())
 }
+
+#[test]
+fn one_off_hash_download() -> Result<(), FetchHashError> {
+    let temp_out = tmp_path()?;
+    let output_file = temp_out.join("test_download_hash.fam");
+    let actual_hash = hash_download(
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        &output_file,
+    )?;
+    assert!(actual_hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
+    Ok(())
+}
+// !!!cmk test the delayed error result

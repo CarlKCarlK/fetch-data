@@ -126,7 +126,7 @@ impl FetchHash {
 
             let local_path = cache_dir.join(path);
             let url = format!("{url_root}{path_as_string}");
-            download_hash(url, &hash, &local_path)?;
+            fetch(url, &hash, &local_path)?;
             local_list.push(local_path);
         }
 
@@ -187,8 +187,9 @@ pub enum FetchHashSpecificError {
     CannotCreateCacheDir(),
 }
 
+// !!!cmk also make a utility function to find hash from url
 // https://stackoverflow.com/questions/58006033/how-to-run-setup-code-before-any-tests-run-in-rust
-pub fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
+pub fn fetch<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     url: U,
     hash: H,
     path: P,
@@ -196,11 +197,6 @@ pub fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     let path = path.as_ref();
     if !path.exists() {
         download(url, &path)?;
-        if !path.exists() {
-            return Err(
-                FetchHashSpecificError::DownloadedFileNotSeen(path.display().to_string()).into(),
-            );
-        }
     }
     let actual_hash = hash_file(&path)?;
     if !actual_hash.eq(hash.as_ref()) {
@@ -214,7 +210,17 @@ pub fn download_hash<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
     Ok(())
 }
 
-fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchHashError> {
+// !!!cmk also make a utility function to find hash from url
+pub fn hash_download<U: AsRef<str>, P: AsRef<Path>>(
+    url: U,
+    path: P,
+) -> Result<String, FetchHashError> {
+    let path = path.as_ref();
+    download(url, &path)?;
+    hash_file(&path)
+}
+
+pub fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchHashError> {
     let mut sha256 = Sha256::new();
     let mut file = File::open(path)?;
 
@@ -225,11 +231,17 @@ fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchHashError> {
     Ok(hex_hash)
 }
 
-fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, file_path: P) -> Result<(), FetchHashError> {
+pub fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, path: P) -> Result<(), FetchHashError> {
+    let path = path.as_ref();
     let req = ureq::get(url.as_ref()).call()?;
     let mut reader = req.into_reader();
-    let mut file = File::create(&file_path)?;
+    let mut file = File::create(&path)?;
     std::io::copy(&mut reader, &mut file)?;
+    if !path.exists() {
+        return Err(
+            FetchHashSpecificError::DownloadedFileNotSeen(path.display().to_string()).into(),
+        );
+    }
     Ok(())
 }
 
