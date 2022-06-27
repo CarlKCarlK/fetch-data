@@ -66,6 +66,24 @@ fn create_registry_file() -> Result<(), FetchHashError> {
 }
 
 #[test]
+fn gen_registry_contents_example() -> Result<(), FetchHashError> {
+    let fetch_hash = FetchHash::new(
+        "", // ignored
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "BAR_APP_DATA_DIR",
+        "com",
+        "Foo Corp",
+        "Bar App",
+    );
+
+    let registry_contents = fetch_hash.gen_registry_contents(["small.fam", "small.bim"])?;
+    println!("{registry_contents}"); // prints:
+                                     // small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
+                                     // small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e
+    Ok(())
+}
+
+#[test]
 fn one_off_fetch() -> Result<(), FetchHashError> {
     let tmp_dir = tmp_dir()?;
     let output_file = tmp_dir.join("test_download_hash.fam");
@@ -152,5 +170,22 @@ fn bad_fetch_hash() -> Result<(), FetchHashError> {
         _ => panic!("test failure"),
     };
 
+    Ok(())
+}
+
+#[test]
+fn fetch_hash_new_example() -> Result<(), FetchHashError> {
+    let fetch_hash = FetchHash::new(
+        "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
+                           small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "BAR_APP_DATA_DIR",
+        "com",
+        "Foo Corp",
+        "Bar App",
+    );
+
+    let local_path = fetch_hash.fetch_file("small.bim")?;
+    assert!(local_path.exists());
     Ok(())
 }

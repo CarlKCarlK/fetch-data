@@ -16,28 +16,75 @@ use std::{
 use temp_testdir::TempDir;
 use thiserror::Error;
 
-/// Used to fetch files from a remote location. cmk see examples
+/// Used to fetch files from a remote location.
+///
+/// # Thread Safety
+///
+/// To make `FetchHash` work well with multithreaded testing, it is thread safe (via a Mutex).
+///
 pub struct FetchHash {
     mutex: Mutex<Result<Internals, FetchHashError>>,
 }
 
 impl FetchHash {
-    /// Create a new FetchHash object. cmk see examples
-    pub fn new<SR, SU, SE, SQ, SO, SA>(
-        registry_contents: SR,
-        url_root: SU,
-        env_key: SE,
-        qualifier: SQ,
-        organization: SO,
-        application: SA,
+    /// Create a new FetchHash object.
+    ///
+    /// # Errors
+    ///
+    /// To make it work well as a static global, `new` never fails. Instead, `FetchHash` stores any error
+    /// and returns it when the first call to `fetch_file`, etc., is made.
+    ///
+    /// # Arguments
+    /// * `registry_contents` - Whitespace delimited list of files and hashes.
+    ///           Use Rust's [`std::include_str`](https://doc.rust-lang.org/std/macro.include_str.html)
+    ///           macro to include the contents of a file.
+    /// * `url_root` - Base URL for remote files.
+    /// * `env_key` - Environment variable that may contain the path to the data directory.
+    ///           If not set, the data directory will be create via
+    ///           [`ProjectDirs`](https://docs.rs/directories/latest/directories/struct.ProjectDirs.html#method.from_path)
+    ///           and the next three arguments.
+    /// * `qualifier` - The reverse domain name notation of the application, excluding the organization or application name itself.
+    /// * `organization` - The name of the organization that develops this application.
+    /// * `application` - The name of the application itself.
+    ///
+    /// # Example
+    /// ```
+    /// use fetch_hash::{FetchHash};
+    ///
+    /// // Create a new FetchHash object.
+    /// let fetch_hash = FetchHash::new(
+    ///     "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
+    ///      small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
+    ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    ///     "BAR_APP_DATA_DIR",
+    ///     "com",
+    ///     "Foo Corp",
+    ///     "Bar App",
+    ///     );
+    ///
+    /// // If the local file exists and has the right hash, just return its path.
+    /// // Otherwise, download the file, confirm its hash, and return its path.
+    /// let local_path = fetch_hash.fetch_file("small.bim")?;
+    /// assert!(local_path.exists());
+    /// # use fetch_hash::FetchHashError;
+    /// # Ok::<(), FetchHashError>(())
+    /// ```
+    pub fn new<S0, S1, S3, S4, S5, S6>(
+        registry_contents: S0,
+        url_root: S1,
+        env_key: S3,
+        qualifier: S4,
+        organization: S5,
+        application: S6,
     ) -> FetchHash
     where
-        SR: AsRef<str>,
-        SU: AsRef<str>,
-        SE: AsRef<str>,
-        SQ: AsRef<str>,
-        SO: AsRef<str>,
-        SA: AsRef<str>,
+        // any string-like input
+        S0: AsRef<str>,
+        S1: AsRef<str>,
+        S3: AsRef<str>,
+        S4: AsRef<str>,
+        S5: AsRef<str>,
+        S6: AsRef<str>,
     {
         FetchHash {
             mutex: Mutex::new(Internals::new(
@@ -61,21 +108,62 @@ impl FetchHash {
 
     /// Returns the local path to a file. If necessary, the file will be downloaded.
     ///
-    /// A SHA256 hash is used to verify that the file is correct.
-    /// The file will be in a directory determined by environment variable `BED_READER_DATA_DIR`.
-    /// If that environment variable is not set, a cache folder, appropriate to the OS, will be used.
+    /// # Example
+    /// ```
+    /// use fetch_hash::{FetchHash};
+    ///
+    /// // Create a new FetchHash object.
+    /// let fetch_hash = FetchHash::new(
+    ///     "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
+    ///      small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
+    ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    ///     "BAR_APP_DATA_DIR",
+    ///     "com",
+    ///     "Foo Corp",
+    ///     "Bar App",
+    ///     );
+    ///
+    /// // If the local file exists and has the right hash, just return its path.
+    /// // Otherwise, download the file, confirm its hash, and return its path.
+    /// let local_path = fetch_hash.fetch_file("small.bim")?;
+    /// assert!(local_path.exists());
+    /// # use fetch_hash::FetchHashError;
+    /// # Ok::<(), FetchHashError>(())
+    /// ```
     pub fn fetch_file<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf, FetchHashError> {
         let path_list = vec![path.as_ref().to_path_buf()];
         let vec = self.fetch_files(path_list)?;
         Ok(vec[0].clone())
     }
-    /// Returns the local paths to a list of files. If necessary, the files will be downloaded.
+
+    /// Given a list of files, returns a list of their local paths. If necessary, the files will be downloaded.
     ///
-    /// SHA256 hashes are used to verify that the files are correct.
-    /// The files will be in a directory determined by environment variable `BED_READER_DATA_DIR`.
-    /// If that environment variable is not set, a cache folder, appropriate to the OS, will be used.
+    /// # Example
+    /// ```
+    /// use fetch_hash::{FetchHash};
+    ///
+    /// // Create a new FetchHash object.
+    /// let fetch_hash = FetchHash::new(
+    ///     "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
+    ///      small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
+    ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    ///     "BAR_APP_DATA_DIR",
+    ///     "com",
+    ///     "Foo Corp",
+    ///     "Bar App",
+    ///     );
+    ///
+    /// // If a local file exists and has the right hash, just return its path
+    /// // in a list. Otherwise, download the file, confirm its hash, and return
+    /// //  its path in the list.
+    /// let local_path_list = fetch_hash.fetch_files(["small.bim", "small.bim"])?;
+    /// assert!(local_path_list[0].exists() && local_path_list[1].exists());
+    /// # use fetch_hash::FetchHashError;
+    /// # Ok::<(), FetchHashError>(())
+    /// ```
     pub fn fetch_files<I, P>(&self, path_list: I) -> Result<Vec<PathBuf>, FetchHashError>
     where
+        // Any list-like iterable of path-like items
         I: IntoIterator<Item = P>,
         P: AsRef<Path>,
     {
@@ -121,7 +209,39 @@ impl FetchHash {
         }
     }
 
-    /// Compute the contents of a registry file by downloading items and hashing them.
+    /// Compute registry contents by downloading items and hashing them.
+    ///
+    /// # Tips
+    ///
+    /// * If you put the returned contents into a file, you can use Rust's [`std::include_str`](https://doc.rust-lang.org/std/macro.include_str.html)
+    ///   macro to include the contents of that file in [`FetchHash::new`](struct.FetchHash.html#method.new).
+    ///
+    /// * Use utility function [`fetch_hash::dir_to_file_list`](fn.dir_to_file_list.html) to create a list of files in any local directory.
+    /// Note the hash is computed on download files, not any original local files.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fetch_hash::{FetchHash};
+    ///
+    /// // Create a new FetchHash object.
+    /// let fetch_hash = FetchHash::new(
+    ///     "", // ignored
+    ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    ///     "BAR_APP_DATA_DIR",
+    ///     "com",
+    ///     "Foo Corp",
+    ///     "Bar App",
+    ///     );
+    ///
+    /// // Even if local files exist, download each file. Hash each file. Return the results as a string.
+    /// let registry_contents = fetch_hash.gen_registry_contents(["small.fam", "small.bim"])?;
+    /// println!("{registry_contents}"); // prints:
+    ///                                  // small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
+    ///                                  // small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e
+    /// # use fetch_hash::FetchHashError;
+    /// # Ok::<(), FetchHashError>(())
+    /// ```
     pub fn gen_registry_contents<I, P>(&self, path_list: I) -> Result<String, FetchHashError>
     where
         I: IntoIterator<Item = P>,
