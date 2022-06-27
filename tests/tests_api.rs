@@ -1,12 +1,12 @@
 use fetch_hash::{
-    ctor, dir_to_file_list, fetch, hash_download, tmp_path, FetchHash, FetchHashError,
+    ctor, dir_to_file_list, download, fetch, hash_download, hash_file, tmp_dir, FetchHash,
+    FetchHashError, FetchHashSpecificError,
 };
 use std::path::{Path, PathBuf};
 
-// cmk Here we set up to parse at run time. We could/should parse at compile time. See:
+// Here we set up to parse at run time. We could/should parse at compile time. See:
 // https://stackoverflow.com/questions/50553370/how-do-i-use-include-str-for-multiple-files-or-an-entire-directory
 
-// !!!cmk do users need to bring in ctor, too?
 #[ctor]
 static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
     include_str!("../tests/registry.txt"),
@@ -67,8 +67,8 @@ fn create_registry_file() -> Result<(), FetchHashError> {
 
 #[test]
 fn one_off_fetch() -> Result<(), FetchHashError> {
-    let temp_out = tmp_path()?;
-    let output_file = temp_out.join("test_download_hash.fam");
+    let tmp_dir = tmp_dir()?;
+    let output_file = tmp_dir.join("test_download_hash.fam");
     fetch(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
         "36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2",
@@ -81,13 +81,76 @@ fn one_off_fetch() -> Result<(), FetchHashError> {
 
 #[test]
 fn one_off_hash_download() -> Result<(), FetchHashError> {
-    let temp_out = tmp_path()?;
-    let output_file = temp_out.join("test_download_hash.fam");
-    let actual_hash = hash_download(
+    let tmp_dir = tmp_dir()?;
+    let path = tmp_dir.join("small.fam");
+    let hash = hash_download(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
-        &output_file,
+        &path,
     )?;
-    assert!(actual_hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
+    assert!(hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
     Ok(())
 }
-// !!!cmk test the delayed error result
+
+#[test]
+fn one_off_just_download() -> Result<(), FetchHashError> {
+    let tmp_dir = tmp_dir()?;
+    let path = tmp_dir.join("small.fam");
+    download(
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        &path,
+    )?;
+    assert!(path.exists());
+    Ok(())
+}
+
+#[test]
+fn one_off_just_hash_file() -> Result<(), FetchHashError> {
+    let tmp_dir = tmp_dir()?;
+    let path = tmp_dir.join("small.fam");
+    download(
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        &path,
+    )?;
+    let hash = hash_file(&path)?;
+    assert!(hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
+    Ok(())
+}
+
+#[test]
+fn one_off_just_dir_to_file_list() -> Result<(), FetchHashError> {
+    let tmp_dir = tmp_dir()?;
+    download(
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        tmp_dir.join("small.fam"),
+    )?;
+    download(
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.bim",
+        tmp_dir.join("small.bim"),
+    )?;
+    let file_list = dir_to_file_list(tmp_dir)?;
+    println!("{file_list:?}"); // prints ["small.bim", "small.fam"]
+    Ok(())
+}
+
+#[test]
+fn bad_fetch_hash() -> Result<(), FetchHashError> {
+    // Create list of files in data directory
+
+    let fetch_hash = FetchHash::new(
+        "OneColumn",
+        "",
+        "BAR_APP_DATA_DIR",
+        "com",
+        "Foo Corp",
+        "Bar App",
+    );
+
+    let result = fetch_hash.fetch_file("small.bim");
+
+    match result {
+        Err(FetchHashError::FetchHashError(FetchHashSpecificError::FetchHashNewFailed(_))) => (),
+        _ => panic!("test failure"),
+    };
+
+    Ok(())
+}
