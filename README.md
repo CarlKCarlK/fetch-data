@@ -37,19 +37,20 @@ Suggested Usage (with Example Code)
   it in `tests/registry.txt` and I put data files in `tests/data`.
   See [Registry Creation](#registry-creation) for more information.
 
-* In your code, create a global static `FetchHash` cmk instance cmk that
+* In your code, create a global static `FetchHash` instance that
   reads your `registry.txt` file. You should also give it:
   -  the URL root from which to download the files
   -  an environment variable that can set the local data directory
      where files are stored.
-   - a qualifier, organization, and application cmk used to create a local data 
+   - a qualifier, organization, and application used to create a local data 
      directory when the environment variable is not set.
 
  * Define a public `sample_file` function that takes a file name and returns a `Result`
    containing the path to the file.
 
 ```rust
-use fetch_hash::{ctor, FetchHash};
+use fetch_hash::{ctor, FetchHash, FetchHashError};
+use std::path::{Path, PathBuf};
 
 #[ctor]
 static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
@@ -61,10 +62,10 @@ static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
     "Bar App",
 );
 
-pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, Box<dyn Error>> {
+pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
     STATIC_FETCH_HASH.fetch_file(path)
+}
 
-# use fetch_hash::FetchHashError; // '#' needed for doctest
 # Ok::<(), FetchHashError>(())
 ```
 
@@ -85,7 +86,7 @@ Here is one suggested method for creating a `registry.txt` file.
 * Print this string and put it into a file called `registry.txt`.
 
 ```rust
-use fetch_hash::{FetchHash};
+use fetch_hash::{FetchHash, dir_to_file_list};
 
 let fetch_hash = FetchHash::new(
     "",
@@ -107,12 +108,9 @@ Notes
 
 * Don't use our `sample_file`. Define your own `sample_file` that
   knows about your data files.
-* You don't have to make your `FetchHash` instance global and static. See cmk.
+* You don't have to make your `FetchHash` instance global and static.
 * You don't need to use a registry file or `FetchHash` instance. You can instead use utility functions such as `fetch`.
-* cmk Does binary downloads, so no line ending changes for Windows
-* Debugging bug cmk
-
-
+* Does binary downloads, so no line ending changes for Windows.
 
 Project Links
 -----

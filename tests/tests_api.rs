@@ -12,8 +12,6 @@ fn static_data() -> Result<(), FetchHashError> {
     Ok(())
 }
 
-// !!!cmk tell why new never fails
-
 #[test]
 fn just_in_time_data() -> Result<(), FetchHashError> {
     let fetch_hash = FetchHash::new(
@@ -193,7 +191,8 @@ static STATIC_TEST_API: FetchHash = FetchHash::new(
     "Bar App",
 );
 
-/// cmk
+/// A sample sample_file. Don't use this. Instead, define your own that knows
+/// how to fetch your data files.
 pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
     STATIC_TEST_API.fetch_file(path)
 }

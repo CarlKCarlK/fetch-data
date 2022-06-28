@@ -1,8 +1,6 @@
 #![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-//! Need more docs cmk
-
 /// Used to construct global FetchHash object.
 ///
 pub use ctor::ctor;
@@ -588,7 +586,8 @@ static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
     "Bar App",
 );
 
-/// cmk
+/// A sample sample_file. Don't use this. Instead, define your own that knows
+/// how to fetch your data files.
 pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
     STATIC_FETCH_HASH.fetch_file(path)
 }
