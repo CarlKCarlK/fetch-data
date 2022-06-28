@@ -1,7 +1,7 @@
 #![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-/// Used to construct global FetchHash object.
+/// Used to construct global FetchHash instance.
 ///
 pub use ctor::ctor;
 use directories::ProjectDirs;
@@ -51,7 +51,7 @@ impl FetchHash {
     /// ```
     /// use fetch_hash::{FetchHash};
     ///
-    /// // Create a new FetchHash object.
+    /// // Create a new FetchHash instance.
     /// let fetch_hash = FetchHash::new(
     ///     "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
     ///      small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
@@ -142,7 +142,7 @@ impl FetchHash {
     /// ```
     /// use fetch_hash::{FetchHash};
     ///
-    /// // Create a new FetchHash object.
+    /// // Create a new FetchHash instance.
     /// let fetch_hash = FetchHash::new(
     ///     "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
     ///      small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
@@ -578,7 +578,7 @@ pub fn tmp_dir() -> Result<PathBuf, FetchHashError> {
 
 #[ctor]
 static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
-    include_str!("../tests/registry.txt"),
+    include_str!("../registry.txt"),
     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
     "BAR_APP_DATA_DIR",
     "com",

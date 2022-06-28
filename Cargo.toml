@@ -1,7 +1,7 @@
 [package]
-version = "0.1.1"
+version = "0.1.2"
 name = "fetch-hash"
-description = "Download data files when needed and with validation."
+description = "Fetch data files from a URL, if needed. Verify contents via SHA256."
 repository = "https://github.com/CarlKCarlK/fetch-hash"
 readme = "README.md"
 documentation = "https://docs.rs/fetch-hash/latest/fetch-hash/"

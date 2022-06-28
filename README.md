@@ -3,15 +3,12 @@ fetch-hash
 
 [<img alt="github" src="https://img.shields.io/badge/github-fetch--hash-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/CarlKCarlK/fetch-hash)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/fetch-hash.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/fetch-hash)
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-fetch--hash-66c2a5?style=for-the-badge&labelColor=555555&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20">](https://docs.rs/bed-reader)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-fetch--hash-66c2a5?style=for-the-badge&labelColor=555555&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20">](https://docs.rs/fetch-hash)
 [<img alt="build status" src="https://img.shields.io/github/workflow/status/fastlmm/bed-reader/CI/master?style=for-the-badge" height="20">](https://github.com/CarlKCarlk/fetch-hash)
 
-This crate helps you retrieve data files from the Internet.
-Files are only downloaded when needed. The contents of the files
-are always verified via a SHA256 hash.
+Fetch data files from a URL, if needed. Verify contents via SHA256.
 
-The ability to download data files makes creating sample code easier.
-For example, here we download a genomics file and print its size:
+`Fetch-Hash` makes creating example code easier. In this example, we download a genomics file from GitHub and print its size:
 
 ```rust
 use fetch_hash::sample_file;
@@ -27,26 +24,28 @@ Features
 
 * Thread-safe -- allowing it to be used with Rust's multithreaded testing framework.
 * Inspired by Python's popular [Pooch](https://pypi.org/project/pooch/) and our PySnptools [filecache module](https://fastlmm.github.io/PySnpTools/#module-pysnptools.util.filecache).
-* Avoids run-times by using [`ureq`](https://crates.io/crates/ureq) to download files via blocking I/O.
+* Avoids run-times such a Tokio by using [`ureq`](https://crates.io/crates/ureq) to download files via blocking I/O.
 
-Suggested Usage (with Example Code)
+Suggested Usage
 -----
 
+You can use [`FetchHash`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html) many ways. Here are the steps for one way to use it, followed by sample code.
+
 * Create a `registry.txt` file containing a whitespace-delimited list of files
-  and their hashes. (This is the same format as [Pooch](https://pypi.org/project/pooch/)). You can put this file anywhere in your project. I put
-  it in `tests/registry.txt` and I put data files in `tests/data`.
-  See [Registry Creation](#registry-creation) for more information.
+  and their hashes. (This is the same format as [Pooch](https://pypi.org/project/pooch/)).  See [Registry Creation](#registry-creation)
+  below, for more information.
 
-* In your code, create a global static `FetchHash` instance that
-  reads your `registry.txt` file. You should also give it:
+* As shown below, create a global static
+ [`FetchHash`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html#method.new)
+  instance that reads your `registry.txt` file. Tell it:
   -  the URL root from which to download the files
-  -  an environment variable that can set the local data directory
+  -  an environment variable to set the local data directory
      where files are stored.
-   - a qualifier, organization, and application used to create a local data 
-     directory when the environment variable is not set.
+   - a `qualifier`, `organization`, and `application` to create a local data 
+     directory when the environment variable is not set. (See [ProjectsDir](https://docs.rs/directories/latest/directories/struct.ProjectDirs.html#method.from_path) for details.)
 
- * Define a public `sample_file` function that takes a file name and returns a `Result`
-   containing the path to the file.
+ * As shown below, define a public `sample_file` function that takes a file name and returns a `Result`
+   containing the path to the downloaded file.
 
 ```rust
 use fetch_hash::{ctor, FetchHash, FetchHashError};
@@ -54,51 +53,53 @@ use std::path::{Path, PathBuf};
 
 #[ctor]
 static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
-    include_str!("../tests/registry.txt"),
+    include_str!("../registry.txt"),
     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
-    "BAR_APP_DATA_DIR",
-    "com",
-    "Foo Corp",
-    "Bar App",
+    "BAR_APP_DATA_DIR", // env_var
+    "com",              // qualifier
+    "Foo Corp",         // organization
+    "Bar App",          // application
 );
 
+/// Download a data file.
 pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
     STATIC_FETCH_HASH.fetch_file(path)
 }
 
-# Ok::<(), FetchHashError>(())
 ```
 
-You and your users can now use your `sample_file` function to download your files as needed.
+You can now use your `sample_file` function to download your files as needed.
 
-<a name="registry-creation"></a>Registry Creation (with Example Code)
+<a name="registry-creation"></a>Registry Creation
 ------------------------
 
-Here is one suggested method for creating a `registry.txt` file.
+You can create your `registry.txt` file many ways. Here are the steps for one way to create it, followed by sample code.
 
-* Upload your data files to the Internet. For example, I put my data files
-  in my project under `tests/data`, so they uploaded to [this GitHub folder](https://github.com/CarlKCarlK/fetch-hash/tree/main/tests/data). In GitHub, by looking at the [raw view of a data file](https://github.com/CarlKCarlK/fetch-hash/blob/main/tests/data/small.fam), I see the root URL for these files.
-* Write code that
-  - Creates a `FetchHash` instance without registry contents
+* Upload your data files to the Internet. (For example, `Fetch-Hash`
+  puts its data files
+  in `tests/data`, so they upload to [this GitHub folder](https://github.com/CarlKCarlK/fetch-hash/tree/main/tests/data). In GitHub, by looking at the [raw view of a data file](https://github.com/CarlKCarlK/fetch-hash/blob/main/tests/data/small.fam), we see the root URL for these files.)
+* As shown below, write code that
+  - Creates a [`FetchHash`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html#method.new) instance without registry contents.
   - Lists the files in your data directory.
-  - Calls `gen_registry_contents` on your list of files. It will download
+  - Calls [`gen_registry_contents`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html#method.gen_registry_contents) on your list of files. It will download
     the files, compute their hashes, and create a string of file names and hashes.
-* Print this string and put it into a file called `registry.txt`.
+* Print this string then manually put it into a file called `registry.txt`.
 
 ```rust
 use fetch_hash::{FetchHash, dir_to_file_list};
 
 let fetch_hash = FetchHash::new(
-    "",
+    "", // registry_contents ignored
     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
-    "BAR_APP_DATA_DIR",
-    "com",
-    "Foo Corp",
-    "Bar App",
+    "BAR_APP_DATA_DIR", // env_var
+    "com",              // qualifier
+    "Foo Corp",         // organization
+    "Bar App",          // application
 );
 let file_list = dir_to_file_list("tests/data")?;
 let registry_contents = fetch_hash.gen_registry_contents(file_list)?;
 println!("{registry_contents}");
+
 # use fetch_hash::FetchHashError; // '#' needed for doctest
 # Ok::<(), FetchHashError>(())
 ```
@@ -106,8 +107,8 @@ println!("{registry_contents}");
 Notes
 -----
 
-* Don't use our `sample_file`. Define your own `sample_file` that
-  knows about your data files.
+* Don't use our sample `sample_file`. Define your own `sample_file` that
+  knows where to find your data files.
 * You don't have to make your `FetchHash` instance global and static.
 * You don't need to use a registry file or `FetchHash` instance. You can instead use utility functions such as `fetch`.
 * Does binary downloads, so no line ending changes for Windows.

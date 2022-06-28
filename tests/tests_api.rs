@@ -15,7 +15,7 @@ fn static_data() -> Result<(), FetchHashError> {
 #[test]
 fn just_in_time_data() -> Result<(), FetchHashError> {
     let fetch_hash = FetchHash::new(
-        include_str!("../tests/registry.txt"),
+        include_str!("../registry.txt"),
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
         "BAR_APP_DATA_DIR",
         "com",
@@ -183,7 +183,7 @@ fn readme_example1() -> Result<(), FetchHashError> {
 
 #[ctor]
 static STATIC_TEST_API: FetchHash = FetchHash::new(
-    include_str!("../tests/registry.txt"),
+    include_str!("../registry.txt"),
     "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
     "BAR_APP_DATA_DIR",
     "com",
