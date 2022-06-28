@@ -1,6 +1,16 @@
 [package]
-name = "fetch-hash"
 version = "0.1.1"
+name = "fetch-hash"
+description = "Download data files when needed and with validation."
+repository = "https://github.com/CarlKCarlK/fetch-hash"
+readme = "README.md"
+documentation = "https://docs.rs/fetch-hash/latest/fetch-hash/"
+authors = ["Carl Kadie"]
+exclude = ["tests/*"]
+license = "Apache-2.0"
+keywords = ["testing", "data", "web", "request"]
+categories = ["science"]
+homepage = "https://github.com/CarlKCarlK/fetch-hash"
 edition = "2021"
 
 
