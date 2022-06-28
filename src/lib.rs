@@ -3,6 +3,7 @@
 
 /// Used to construct global FetchHash instance.
 ///
+/// This is a re-export from crate [`ctor`](https://crates.io/crates/ctor).
 pub use ctor::ctor;
 use directories::ProjectDirs;
 
@@ -16,11 +17,11 @@ use std::{
 use temp_testdir::TempDir;
 use thiserror::Error;
 
-/// Used to fetch files from a remote location.
+/// Used to fetch data files from a URL, if needed. It verifies file contents via a hash.
 ///
 /// # Thread Safety
 ///
-/// To make `FetchHash` work well with multithreaded testing, it is thread safe (via a Mutex).
+/// `FetchHash` works well with multithreaded testing, It is thread safe (via a Mutex).
 ///
 pub struct FetchHash {
     mutex: Mutex<Result<Internals, FetchHashError>>,
@@ -31,10 +32,12 @@ impl FetchHash {
     ///
     /// # Errors
     ///
-    /// To make it work well as a static global, `new` never fails. Instead, `FetchHash` stores any error
+    /// To make `FetchHash` work well as a static global, `new` never fails. Instead, `FetchHash` stores any error
     /// and returns it when the first call to `fetch_file`, etc., is made.
     ///
     /// # Arguments
+    ///  *all inputs are string-like*
+    ///
     /// * `registry_contents` - Whitespace delimited list of files and hashes.
     ///           Use Rust's [`std::include_str`](https://doc.rust-lang.org/std/macro.include_str.html)
     ///           macro to include the contents of a file.
@@ -106,7 +109,7 @@ impl FetchHash {
         lock
     }
 
-    /// Returns the local path to a file. If necessary, the file will be downloaded.
+    /// Fetch data files from a URL, if needed. Verify contents via a hash.
     ///
     /// # Example
     /// ```
@@ -271,9 +274,17 @@ impl FetchHash {
 
         Ok(s)
     }
+
+    /// Return the path to the local cache directory.
+    pub fn cache_dir(&self) -> Result<PathBuf, FetchHashError> {
+        let lock = self.lock();
+        let internals = FetchHash::internals(lock.as_ref())?;
+        let cache_dir = &internals.cache_dir;
+        Ok(cache_dir.to_owned())
+    }
 }
 
-/// All possible errors returned by this library and the libraries it depends on.
+/// All possible errors returned by this crate and the crates it depends on.
 // Based on `<https://nick.groenen.me/posts/rust-error-handling/#the-library-error-type>`
 #[derive(Error, Debug)]
 pub enum FetchHashError {
@@ -289,7 +300,7 @@ pub enum FetchHashError {
     #[error(transparent)]
     UreqError(#[from] ureq::Error),
 }
-/// All errors specific to this library.
+/// All errors specific to this crate.
 #[derive(Error, Debug, Clone)]
 pub enum FetchHashSpecificError {
     #[allow(missing_docs)]
@@ -390,7 +401,7 @@ pub fn hash_download<U: AsRef<str>, P: AsRef<Path>>(
     hash_file(&path)
 }
 
-/// Compute the SHA256 hash of a local file.
+/// Compute the hash (SHA256) of a local file.
 ///
 /// # Example
 /// ```
@@ -586,8 +597,8 @@ static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
     "Bar App",
 );
 
-/// A sample sample_file. Don't use this. Instead, define your own that knows
-/// how to fetch your data files.
+/// A sample sample_file. Don't use this. Instead, define your own `sample_file` function
+/// that knows how to fetch your data files.
 pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
     STATIC_FETCH_HASH.fetch_file(path)
 }

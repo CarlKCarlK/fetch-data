@@ -66,6 +66,14 @@ fn gen_registry_contents_example() -> Result<(), FetchHashError> {
 }
 
 #[test]
+fn cache_dir() -> Result<(), FetchHashError> {
+    let cache_dir = STATIC_TEST_API.cache_dir()?;
+    assert!(cache_dir.exists());
+    println!("{cache_dir:?}",);
+    Ok(())
+}
+
+#[test]
 fn one_off_fetch() -> Result<(), FetchHashError> {
     let tmp_dir = tmp_dir()?;
     let output_file = tmp_dir.join("test_download_hash.fam");
