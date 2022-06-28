@@ -1,28 +1,12 @@
+use std::path::{Path, PathBuf};
+
 use fetch_hash::{
     ctor, dir_to_file_list, download, fetch, hash_download, hash_file, tmp_dir, FetchHash,
     FetchHashError, FetchHashSpecificError,
 };
-use std::path::{Path, PathBuf};
-
-// Here we set up to parse at run time. We could/should parse at compile time. See:
-// https://stackoverflow.com/questions/50553370/how-do-i-use-include-str-for-multiple-files-or-an-entire-directory
-
-#[ctor]
-static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
-    include_str!("../tests/registry.txt"),
-    "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
-    "BAR_APP_DATA_DIR",
-    "com",
-    "Foo Corp",
-    "Bar App",
-);
 
 #[test]
 fn static_data() -> Result<(), FetchHashError> {
-    fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
-        STATIC_FETCH_HASH.fetch_file(path)
-    }
-
     let local_path = sample_file("small.bim")?;
     assert!(local_path.exists());
     Ok(())
@@ -77,7 +61,7 @@ fn gen_registry_contents_example() -> Result<(), FetchHashError> {
     );
 
     let registry_contents = fetch_hash.gen_registry_contents(["small.fam", "small.bim"])?;
-    println!("{registry_contents}"); // prints:
+    println!("{registry_contents}"); // Prints:
                                      // small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
                                      // small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e
     Ok(())
@@ -146,7 +130,7 @@ fn one_off_just_dir_to_file_list() -> Result<(), FetchHashError> {
         tmp_dir.join("small.bim"),
     )?;
     let file_list = dir_to_file_list(tmp_dir)?;
-    println!("{file_list:?}"); // prints ["small.bim", "small.fam"]
+    println!("{file_list:?}"); // Prints ["small.bim", "small.fam"]
     Ok(())
 }
 
@@ -188,4 +172,28 @@ fn fetch_hash_new_example() -> Result<(), FetchHashError> {
     let local_path = fetch_hash.fetch_file("small.bim")?;
     assert!(local_path.exists());
     Ok(())
+}
+
+#[test]
+fn readme_example1() -> Result<(), FetchHashError> {
+    use fetch_hash::sample_file;
+
+    let path = sample_file("small.fam")?;
+    println!("{}", std::fs::metadata(path)?.len()); // Prints 85
+    Ok(())
+}
+
+#[ctor]
+static STATIC_TEST_API: FetchHash = FetchHash::new(
+    include_str!("../tests/registry.txt"),
+    "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    "BAR_APP_DATA_DIR",
+    "com",
+    "Foo Corp",
+    "Bar App",
+);
+
+/// cmk
+pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
+    STATIC_TEST_API.fetch_file(path)
 }

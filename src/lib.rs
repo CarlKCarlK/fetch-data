@@ -1,8 +1,10 @@
 #![warn(missing_docs)]
+#![doc = include_str!("../README.md")]
 
 //! Need more docs cmk
 
-/// Used to construct global FetchHash object. cmk see examples
+/// Used to construct global FetchHash object.
+///
 pub use ctor::ctor;
 use directories::ProjectDirs;
 
@@ -236,7 +238,7 @@ impl FetchHash {
     ///
     /// // Even if local files exist, download each file. Hash each file. Return the results as a string.
     /// let registry_contents = fetch_hash.gen_registry_contents(["small.fam", "small.bim"])?;
-    /// println!("{registry_contents}"); // prints:
+    /// println!("{registry_contents}"); // Prints:
     ///                                  // small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
     ///                                  // small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e
     /// # use fetch_hash::FetchHashError;
@@ -317,7 +319,7 @@ pub enum FetchHashSpecificError {
     CannotCreateCacheDir(),
 }
 
-/// If necessary, retrieve a file from a URL.
+/// If necessary, retrieve a file from a URL, checking its hash.
 /// # Example
 /// ```
 /// use fetch_hash::{fetch, tmp_dir};
@@ -496,7 +498,7 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Fe
 /// )?;
 /// // List the files in the directory.
 /// let file_list = dir_to_file_list(tmp_dir)?;
-/// println!("{file_list:?}"); // prints ["small.bim", "small.fam"]
+/// println!("{file_list:?}"); // Prints ["small.bim", "small.fam"]
 /// # use fetch_hash::FetchHashError;
 /// # Ok::<(), FetchHashError>(())
 /// ```
@@ -574,4 +576,19 @@ pub fn tmp_dir() -> Result<PathBuf, FetchHashError> {
     let output_path = TempDir::default().as_ref().to_owned();
     fs::create_dir(&output_path)?;
     Ok(output_path)
+}
+
+#[ctor]
+static STATIC_FETCH_HASH: FetchHash = FetchHash::new(
+    include_str!("../tests/registry.txt"),
+    "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    "BAR_APP_DATA_DIR",
+    "com",
+    "Foo Corp",
+    "Bar App",
+);
+
+/// cmk
+pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
+    STATIC_FETCH_HASH.fetch_file(path)
 }
