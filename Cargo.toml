@@ -1,16 +1,16 @@
 [package]
 version = "0.1.3"
-name = "fetch-hash"
+name = "fetch-data"
 description = "Fetch data files from a URL, but only if needed. Verify contents via SHA256."
-repository = "https://github.com/CarlKCarlK/fetch-hash"
+repository = "https://github.com/CarlKCarlK/fetch-data"
 readme = "README.md"
-documentation = "https://docs.rs/fetch-hash/latest/fetch-hash/"
+documentation = "https://docs.rs/fetch-data/latest/fetch-data/"
 authors = ["Carl Kadie"]
 exclude = ["tests/data/*"]
 license = "Apache-2.0"
 keywords = ["testing", "data", "web", "request"]
 categories = ["science"]
-homepage = "https://github.com/CarlKCarlK/fetch-hash"
+homepage = "https://github.com/CarlKCarlK/fetch-data"
 edition = "2021"
 
 

@@ -1,40 +1,40 @@
 use std::path::{Path, PathBuf};
 
-use fetch_hash::{
-    ctor, dir_to_file_list, download, fetch, hash_download, hash_file, tmp_dir, FetchHash,
-    FetchHashError, FetchHashSpecificError,
+use fetch_data::{
+    ctor, dir_to_file_list, download, fetch, hash_download, hash_file, tmp_dir, FetchData,
+    FetchDataError, FetchDataSpecificError,
 };
 
 #[test]
-fn static_data() -> Result<(), FetchHashError> {
+fn static_data() -> Result<(), FetchDataError> {
     let local_path = sample_file("small.bim")?;
     assert!(local_path.exists());
     Ok(())
 }
 
 #[test]
-fn just_in_time_data() -> Result<(), FetchHashError> {
-    let fetch_hash = FetchHash::new(
+fn just_in_time_data() -> Result<(), FetchDataError> {
+    let fetch_data = FetchData::new(
         include_str!("../registry.txt"),
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/",
         "BAR_APP_DATA_DIR",
         "com",
         "Foo Corp",
         "Bar App",
     );
 
-    let local_path = fetch_hash.fetch_file("empty.bed")?;
+    let local_path = fetch_data.fetch_file("empty.bed")?;
     assert!(local_path.exists());
     Ok(())
 }
 
 #[test]
-fn create_registry_file() -> Result<(), FetchHashError> {
+fn create_registry_file() -> Result<(), FetchDataError> {
     // Create list of files in data directory
 
-    let fetch_hash = FetchHash::new(
+    let fetch_data = FetchData::new(
         "",
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/",
         "BAR_APP_DATA_DIR",
         "com",
         "Foo Corp",
@@ -42,23 +42,23 @@ fn create_registry_file() -> Result<(), FetchHashError> {
     );
 
     let file_list = dir_to_file_list("tests/data")?;
-    let registry_contents = fetch_hash.gen_registry_contents(file_list)?;
+    let registry_contents = fetch_data.gen_registry_contents(file_list)?;
     println!("{registry_contents}");
     Ok(())
 }
 
 #[test]
-fn gen_registry_contents_example() -> Result<(), FetchHashError> {
-    let fetch_hash = FetchHash::new(
+fn gen_registry_contents_example() -> Result<(), FetchDataError> {
+    let fetch_data = FetchData::new(
         "", // ignored
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/",
         "BAR_APP_DATA_DIR",
         "com",
         "Foo Corp",
         "Bar App",
     );
 
-    let registry_contents = fetch_hash.gen_registry_contents(["small.fam", "small.bim"])?;
+    let registry_contents = fetch_data.gen_registry_contents(["small.fam", "small.bim"])?;
     println!("{registry_contents}"); // Prints:
                                      // small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
                                      // small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e
@@ -66,7 +66,7 @@ fn gen_registry_contents_example() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn cache_dir() -> Result<(), FetchHashError> {
+fn cache_dir() -> Result<(), FetchDataError> {
     let cache_dir = STATIC_TEST_API.cache_dir()?;
     assert!(cache_dir.exists());
     println!("{cache_dir:?}",);
@@ -74,11 +74,11 @@ fn cache_dir() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn one_off_fetch() -> Result<(), FetchHashError> {
+fn one_off_fetch() -> Result<(), FetchDataError> {
     let tmp_dir = tmp_dir()?;
     let output_file = tmp_dir.join("test_download_hash.fam");
     fetch(
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         "36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2",
         &output_file,
     )?;
@@ -88,11 +88,11 @@ fn one_off_fetch() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn one_off_hash_download() -> Result<(), FetchHashError> {
+fn one_off_hash_download() -> Result<(), FetchDataError> {
     let tmp_dir = tmp_dir()?;
     let path = tmp_dir.join("small.fam");
     let hash = hash_download(
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         &path,
     )?;
     assert!(hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
@@ -100,11 +100,11 @@ fn one_off_hash_download() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn one_off_just_download() -> Result<(), FetchHashError> {
+fn one_off_just_download() -> Result<(), FetchDataError> {
     let tmp_dir = tmp_dir()?;
     let path = tmp_dir.join("small.fam");
     download(
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         &path,
     )?;
     assert!(path.exists());
@@ -112,11 +112,11 @@ fn one_off_just_download() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn one_off_just_hash_file() -> Result<(), FetchHashError> {
+fn one_off_just_hash_file() -> Result<(), FetchDataError> {
     let tmp_dir = tmp_dir()?;
     let path = tmp_dir.join("small.fam");
     download(
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         &path,
     )?;
     let hash = hash_file(&path)?;
@@ -125,14 +125,14 @@ fn one_off_just_hash_file() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn one_off_just_dir_to_file_list() -> Result<(), FetchHashError> {
+fn one_off_just_dir_to_file_list() -> Result<(), FetchDataError> {
     let tmp_dir = tmp_dir()?;
     download(
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.fam",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         tmp_dir.join("small.fam"),
     )?;
     download(
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/small.bim",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.bim",
         tmp_dir.join("small.bim"),
     )?;
     let file_list = dir_to_file_list(tmp_dir)?;
@@ -141,10 +141,10 @@ fn one_off_just_dir_to_file_list() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn bad_fetch_hash() -> Result<(), FetchHashError> {
+fn bad_fetch_data() -> Result<(), FetchDataError> {
     // Create list of files in data directory
 
-    let fetch_hash = FetchHash::new(
+    let fetch_data = FetchData::new(
         "OneColumn",
         "",
         "BAR_APP_DATA_DIR",
@@ -153,10 +153,10 @@ fn bad_fetch_hash() -> Result<(), FetchHashError> {
         "Bar App",
     );
 
-    let result = fetch_hash.fetch_file("small.bim");
+    let result = fetch_data.fetch_file("small.bim");
 
     match result {
-        Err(FetchHashError::FetchHashError(FetchHashSpecificError::FetchHashNewFailed(_))) => (),
+        Err(FetchDataError::FetchDataError(FetchDataSpecificError::FetchDataNewFailed(_))) => (),
         _ => panic!("test failure"),
     };
 
@@ -164,25 +164,25 @@ fn bad_fetch_hash() -> Result<(), FetchHashError> {
 }
 
 #[test]
-fn fetch_hash_new_example() -> Result<(), FetchHashError> {
-    let fetch_hash = FetchHash::new(
+fn fetch_data_new_example() -> Result<(), FetchDataError> {
+    let fetch_data = FetchData::new(
         "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
                            small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
-        "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+        "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/",
         "BAR_APP_DATA_DIR",
         "com",
         "Foo Corp",
         "Bar App",
     );
 
-    let local_path = fetch_hash.fetch_file("small.bim")?;
+    let local_path = fetch_data.fetch_file("small.bim")?;
     assert!(local_path.exists());
     Ok(())
 }
 
 #[test]
-fn readme_example1() -> Result<(), FetchHashError> {
-    use fetch_hash::sample_file;
+fn readme_example1() -> Result<(), FetchDataError> {
+    use fetch_data::sample_file;
 
     let path = sample_file("small.fam")?;
     println!("{}", std::fs::metadata(path)?.len()); // Prints 85
@@ -190,9 +190,9 @@ fn readme_example1() -> Result<(), FetchHashError> {
 }
 
 #[ctor]
-static STATIC_TEST_API: FetchHash = FetchHash::new(
+static STATIC_TEST_API: FetchData = FetchData::new(
     include_str!("../registry.txt"),
-    "https://raw.githubusercontent.com/CarlKCarlK/fetch-hash/main/tests/data/",
+    "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/",
     "BAR_APP_DATA_DIR",
     "com",
     "Foo Corp",
@@ -201,6 +201,6 @@ static STATIC_TEST_API: FetchHash = FetchHash::new(
 
 /// A sample sample_file. Don't use this. Instead, define your own that knows
 /// how to fetch your data files.
-pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchHashError> {
+pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchDataError> {
     STATIC_TEST_API.fetch_file(path)
 }
