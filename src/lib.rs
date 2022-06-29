@@ -7,11 +7,6 @@
 pub use ctor::ctor;
 use directories::ProjectDirs;
 
-/// Used to create temporary directories.
-///
-/// This is a re-export from crate [`temp-dir`](https://crates.io/crates/temp-dir).
-pub use temp_testdir::TempDir;
-
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
@@ -335,7 +330,8 @@ pub enum FetchDataSpecificError {
 /// If necessary, retrieve a file from a URL, checking its hash.
 /// # Example
 /// ```
-/// use fetch_data::{fetch, TempDir};
+/// use fetch_data::fetch;
+/// use temp_testdir::TempDir;
 ///
 /// // Create a temporary local directory.
 /// let temp_dir = TempDir::default();
@@ -382,7 +378,8 @@ pub fn fetch<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
 ///
 /// # Example
 /// ```
-/// use fetch_data::{hash_download, TempDir};
+/// use fetch_data::hash_download;
+/// use temp_testdir::TempDir;
 ///
 /// // Create a temporary local directory.
 /// let temp_dir = TempDir::default();
@@ -409,7 +406,8 @@ pub fn hash_download<U: AsRef<str>, P: AsRef<Path>>(
 ///
 /// # Example
 /// ```
-/// use fetch_data::{hash_file, download, TempDir};
+/// use fetch_data::{hash_file, download};
+/// use temp_testdir::TempDir;
 ///
 /// // Download a file to a temporary directory.
 /// let temp_dir = TempDir::default();
@@ -438,7 +436,8 @@ pub fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchDataError> {
 ///
 /// # Example
 /// ```
-/// use fetch_data::{download, TempDir};
+/// use fetch_data::download;
+/// use temp_testdir::TempDir;
 ///
 /// // Create a temporary local directory.
 /// let temp_dir = TempDir::default();
@@ -497,7 +496,8 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Fe
 ///
 /// # Example
 /// ```
-/// use fetch_data::{dir_to_file_list, download, TempDir};
+/// use fetch_data::{dir_to_file_list, download};
+/// use temp_testdir::TempDir;
 ///
 /// // Create a local directory and download two files to it.
 /// let temp_dir = TempDir::default();

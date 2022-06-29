@@ -2,8 +2,9 @@ use std::path::{Path, PathBuf};
 
 use fetch_data::{
     ctor, dir_to_file_list, download, fetch, hash_download, hash_file, FetchData, FetchDataError,
-    FetchDataSpecificError, TempDir,
+    FetchDataSpecificError,
 };
+use temp_testdir::TempDir;
 
 #[test]
 fn static_data() -> Result<(), FetchDataError> {
