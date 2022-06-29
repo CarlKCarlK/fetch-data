@@ -6,9 +6,11 @@ fetch-hash
 [<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-fetch--hash-66c2a5?style=for-the-badge&labelColor=555555&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20">](https://docs.rs/fetch-hash)
 [<img alt="build status" src="https://img.shields.io/github/workflow/status/CarlKCarlK/fetch-hash/CI/master?style=for-the-badge" height="20">](https://github.com/CarlKCarlk/fetch-hash)
 
-Fetch data files from a URL, if needed. Verify contents via SHA256.
+Fetch data files from a URL, but only if needed. Verify contents via SHA256.
 
-`Fetch-Hash` makes downloading data files easy. This makes creating example code easier. For example, here we download a genomics file from GitHub and print its size:
+`Fetch-Hash` downloads files only if they are not already in a local data directory. It always verifies the local files and downloaded files via a hash.
+
+ `Fetch-Hash` makes it easy to download large and small samples files. For example, here we download a genomics file from GitHub (if it has not already been downloaded). We then print the size of the now local file.
 
 ```rust
 use fetch_hash::sample_file;
@@ -29,7 +31,7 @@ Features
 <a name="suggested-usage"></a>Suggested Usage
 -----
 
-You can use [`FetchHash`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html) many ways. Here are the steps for one way to use it, followed by sample code.
+You can set up [`FetchHash`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html) many ways. Here are the steps for one way to use it, followed by sample code.
 
 * Create a `registry.txt` file containing a whitespace-delimited list of files
   and their hashes. (This is the same format as [Pooch](https://pypi.org/project/pooch/). See section [Registry Creation](#registry-creation) for tips on creating this file.)
@@ -82,7 +84,7 @@ You can create your `registry.txt` file many ways. Here are the steps for one wa
 * As shown below, write code that
   - Creates a [`FetchHash`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html#method.new) instance without registry contents.
   - Lists the files in your data directory.
-  - Calls [`gen_registry_contents`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html#method.gen_registry_contents) on your list of files. It will download
+  - Calls the [`gen_registry_contents`](https://docs.rs/fetch-hash/latest/fetch_hash/struct.FetchHash.html#method.gen_registry_contents) method on your list of files. This method will download
     the files, compute their hashes, and create a string of file names and hashes.
 * Print this string, then manually paste it into a file called `registry.txt`.
 

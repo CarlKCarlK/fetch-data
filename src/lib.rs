@@ -109,7 +109,7 @@ impl FetchHash {
         lock
     }
 
-    /// Fetch data files from a URL, if needed. Verify contents via a hash.
+    /// Fetch data files from a URL, but only if needed. Verify contents via a hash.
     ///
     /// # Example
     /// ```
