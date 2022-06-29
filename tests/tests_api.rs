@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use fetch_data::{
-    ctor, dir_to_file_list, download, fetch, hash_download, hash_file, tmp_dir, FetchData,
-    FetchDataError, FetchDataSpecificError,
+    ctor, dir_to_file_list, download, fetch, hash_download, hash_file, FetchData, FetchDataError,
+    FetchDataSpecificError, TempDir,
 };
 
 #[test]
@@ -75,8 +75,8 @@ fn cache_dir() -> Result<(), FetchDataError> {
 
 #[test]
 fn one_off_fetch() -> Result<(), FetchDataError> {
-    let tmp_dir = tmp_dir()?;
-    let output_file = tmp_dir.join("test_download_hash.fam");
+    let temp_dir = TempDir::default();
+    let output_file = temp_dir.join("small.fam");
     fetch(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         "36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2",
@@ -89,8 +89,8 @@ fn one_off_fetch() -> Result<(), FetchDataError> {
 
 #[test]
 fn one_off_hash_download() -> Result<(), FetchDataError> {
-    let tmp_dir = tmp_dir()?;
-    let path = tmp_dir.join("small.fam");
+    let temp_dir = TempDir::default();
+    let path = temp_dir.join("small.fam");
     let hash = hash_download(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         &path,
@@ -101,8 +101,8 @@ fn one_off_hash_download() -> Result<(), FetchDataError> {
 
 #[test]
 fn one_off_just_download() -> Result<(), FetchDataError> {
-    let tmp_dir = tmp_dir()?;
-    let path = tmp_dir.join("small.fam");
+    let temp_dir = TempDir::default();
+    let path = temp_dir.join("small.fam");
     download(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         &path,
@@ -113,8 +113,8 @@ fn one_off_just_download() -> Result<(), FetchDataError> {
 
 #[test]
 fn one_off_just_hash_file() -> Result<(), FetchDataError> {
-    let tmp_dir = tmp_dir()?;
-    let path = tmp_dir.join("small.fam");
+    let temp_dir = TempDir::default();
+    let path = temp_dir.join("small.fam");
     download(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
         &path,
@@ -126,16 +126,16 @@ fn one_off_just_hash_file() -> Result<(), FetchDataError> {
 
 #[test]
 fn one_off_just_dir_to_file_list() -> Result<(), FetchDataError> {
-    let tmp_dir = tmp_dir()?;
+    let temp_dir = TempDir::default();
     download(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
-        tmp_dir.join("small.fam"),
+        temp_dir.join("small.fam"),
     )?;
     download(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.bim",
-        tmp_dir.join("small.bim"),
+        temp_dir.join("small.bim"),
     )?;
-    let file_list = dir_to_file_list(tmp_dir)?;
+    let file_list = dir_to_file_list(temp_dir)?;
     println!("{file_list:?}"); // Prints ["small.bim", "small.fam"]
     Ok(())
 }

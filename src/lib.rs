@@ -7,6 +7,11 @@
 pub use ctor::ctor;
 use directories::ProjectDirs;
 
+/// Used to create temporary directories.
+///
+/// This is a re-export from crate [`temp-dir`](https://crates.io/crates/temp-dir).
+pub use temp_testdir::TempDir;
+
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
@@ -14,7 +19,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Mutex,
 };
-use temp_testdir::TempDir;
 use thiserror::Error;
 
 /// Used to fetch data files from a URL, if needed. It verifies file contents via a hash.
@@ -331,12 +335,12 @@ pub enum FetchDataSpecificError {
 /// If necessary, retrieve a file from a URL, checking its hash.
 /// # Example
 /// ```
-/// use fetch_data::{fetch, tmp_dir};
+/// use fetch_data::{fetch, TempDir};
 ///
 /// // Create a temporary local directory.
-/// let tmp_dir = tmp_dir()?;
+/// let temp_dir = TempDir::default();
 /// // Download the file and check its hash.
-/// let path = tmp_dir.join("small.fam");
+/// let path = temp_dir.join("small.fam");
 /// fetch(
 ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
 ///     "36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2",
@@ -378,11 +382,11 @@ pub fn fetch<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
 ///
 /// # Example
 /// ```
-/// use fetch_data::{hash_download, tmp_dir};
+/// use fetch_data::{hash_download, TempDir};
 ///
 /// // Create a temporary local directory.
-/// let tmp_dir = tmp_dir()?;
-/// let path = tmp_dir.join("small.fam");
+/// let temp_dir = TempDir::default();
+/// let path = temp_dir.join("small.fam");
 /// // Download a file and compute its hash.
 /// let hash = hash_download(
 ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
@@ -405,11 +409,11 @@ pub fn hash_download<U: AsRef<str>, P: AsRef<Path>>(
 ///
 /// # Example
 /// ```
-/// use fetch_data::{hash_file, download, tmp_dir};
+/// use fetch_data::{hash_file, download, TempDir};
 ///
 /// // Download a file to a temporary directory.
-/// let tmp_dir = tmp_dir()?;
-/// let path = tmp_dir.join("small.fam");
+/// let temp_dir = TempDir::default();
+/// let path = temp_dir.join("small.fam");
 /// download(
 ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
 ///     &path,
@@ -434,12 +438,12 @@ pub fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchDataError> {
 ///
 /// # Example
 /// ```
-/// use fetch_data::{download, tmp_dir};
+/// use fetch_data::{download, TempDir};
 ///
 /// // Create a temporary local directory.
-/// let tmp_dir = tmp_dir()?;
+/// let temp_dir = TempDir::default();
 /// // Download a file to the temporary directory.
-/// let path = tmp_dir.join("small.fam");
+/// let path = temp_dir.join("small.fam");
 /// download(
 ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
 ///     &path,
@@ -493,20 +497,20 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Fe
 ///
 /// # Example
 /// ```
-/// use fetch_data::{dir_to_file_list, download, tmp_dir};
+/// use fetch_data::{dir_to_file_list, download, TempDir};
 ///
 /// // Create a local directory and download two files to it.
-/// let tmp_dir = tmp_dir()?;
+/// let temp_dir = TempDir::default();
 /// download(
 ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
-///     tmp_dir.join("small.fam"),
+///     temp_dir.join("small.fam"),
 /// )?;
 /// download(
 ///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.bim",
-///     tmp_dir.join("small.bim"),
+///     temp_dir.join("small.bim"),
 /// )?;
 /// // List the files in the directory.
-/// let file_list = dir_to_file_list(tmp_dir)?;
+/// let file_list = dir_to_file_list(temp_dir)?;
 /// println!("{file_list:?}"); // Prints ["small.bim", "small.fam"]
 /// # use fetch_data::FetchDataError;
 /// # Ok::<(), FetchDataError>(())
@@ -562,29 +566,6 @@ impl Internals {
         }
         Ok(cache_dir)
     }
-}
-
-/// Return a path to a temporary local directory.
-/// # Example
-/// ```
-/// use fetch_data::{download, tmp_dir};
-///
-/// // Create a temporary local directory.
-/// let tmp_dir = tmp_dir()?;
-/// // Download a file to the temporary directory.
-/// let path = tmp_dir.join("small.fam");
-/// download(
-///     "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
-///     &path,
-/// )?;
-/// assert!(path.exists());
-/// # use fetch_data::FetchDataError;
-/// # Ok::<(), FetchDataError>(())
-/// ```
-pub fn tmp_dir() -> Result<PathBuf, FetchDataError> {
-    let output_path = TempDir::default().as_ref().to_owned();
-    fs::create_dir(&output_path)?;
-    Ok(output_path)
 }
 
 #[ctor]
