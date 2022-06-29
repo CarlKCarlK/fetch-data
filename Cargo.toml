@@ -1,10 +1,10 @@
 [package]
-version = "0.1.4"
+version = "0.1.5"
 name = "fetch-hash"
 description = "Renamed. Please use 'fetch-data' instead"
 repository = "https://github.com/CarlKCarlK/fetch-data"
 readme = "README.md"
-documentation = "https://docs.rs/fetch-hash/latest/fetch-data/"
+documentation = "https://docs.rs/fetch-data/"
 authors = ["Carl Kadie"]
 exclude = ["tests/data/*"]
 license = "Apache-2.0"
