@@ -10,7 +10,7 @@ Fetch data files from a URL, but only if needed. Verify contents via SHA256.
 
 `Fetch-Data` checks a local data directory and then downloads needed files. It always verifies the local files and downloaded files via a hash.
 
- `Fetch-Data` makes it easy to download large and small samples files. For example, here we download a genomics file from GitHub (if it has not already been downloaded). We then print the size of the now local file.
+ `Fetch-Data` makes it easy to download large and small sample files. For example, here we download a genomics file from GitHub (if it has not already been downloaded). We then print the size of the now local file.
 
 ```rust
 use fetch_data::sample_file;
@@ -26,7 +26,7 @@ Features
 
 * Thread-safe -- allowing it to be used with Rust's multithreaded testing framework.
 * Inspired by Python's popular [Pooch](https://pypi.org/project/pooch/) and our PySnpTools [filecache module](https://fastlmm.github.io/PySnpTools/#module-pysnptools.util.filecache).
-* Avoids run-times such a Tokio by (using [`ureq`](https://crates.io/crates/ureq) to download files via blocking I/O).
+* Avoids run-times such as Tokio (by using [`ureq`](https://crates.io/crates/ureq) to download files via blocking I/O).
 
 <a name="suggested-usage"></a>Suggested Usage
 -----
