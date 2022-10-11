@@ -1,5 +1,6 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
+use anyinput::anyinput;
 use fetch_data::{
     ctor, dir_to_file_list, download, fetch, hash_download, hash_file, FetchData, FetchDataError,
     FetchDataSpecificError,
@@ -202,6 +203,7 @@ static STATIC_TEST_API: FetchData = FetchData::new(
 
 /// A sample sample_file. Don't use this. Instead, define your own that knows
 /// how to fetch your data files.
-pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchDataError> {
+#[anyinput]
+pub fn sample_file(path: AnyPath) -> Result<PathBuf, FetchDataError> {
     STATIC_TEST_API.fetch_file(path)
 }

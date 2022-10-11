@@ -1,6 +1,7 @@
 #![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+use anyinput::anyinput;
 /// Used to construct global FetchData instance.
 ///
 /// This is a re-export from crate [`ctor`](https://crates.io/crates/ctor).
@@ -11,7 +12,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs::{self, read_dir, File},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Mutex,
 };
 use thiserror::Error;
@@ -71,31 +72,23 @@ impl FetchData {
     /// # use fetch_data::FetchDataError;
     /// # Ok::<(), FetchDataError>(())
     /// ```
-    pub fn new<S0, S1, S3, S4, S5, S6>(
-        registry_contents: S0,
-        url_root: S1,
-        env_key: S3,
-        qualifier: S4,
-        organization: S5,
-        application: S6,
-    ) -> FetchData
-    where
-        // any string-like input
-        S0: AsRef<str>,
-        S1: AsRef<str>,
-        S3: AsRef<str>,
-        S4: AsRef<str>,
-        S5: AsRef<str>,
-        S6: AsRef<str>,
-    {
+    #[anyinput]
+    pub fn new(
+        registry_contents: AnyString,
+        url_root: AnyString,
+        env_key: AnyString,
+        qualifier: AnyString,
+        organization: AnyString,
+        application: AnyString,
+    ) -> FetchData {
         FetchData {
             mutex: Mutex::new(Internals::new(
-                registry_contents.as_ref(),
-                url_root.as_ref(),
-                env_key.as_ref(),
-                qualifier.as_ref(),
-                organization.as_ref(),
-                application.as_ref(),
+                registry_contents,
+                url_root,
+                env_key,
+                qualifier,
+                organization,
+                application,
             )),
         }
     }
@@ -132,8 +125,9 @@ impl FetchData {
     /// # use fetch_data::FetchDataError;
     /// # Ok::<(), FetchDataError>(())
     /// ```
-    pub fn fetch_file<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf, FetchDataError> {
-        let path_list = vec![path.as_ref().to_path_buf()];
+    #[anyinput]
+    pub fn fetch_file(&self, path: AnyPath) -> Result<PathBuf, FetchDataError> {
+        let path_list = vec![path.to_path_buf()];
         let vec = self.fetch_files(path_list)?;
         Ok(vec[0].clone())
     }
@@ -163,12 +157,8 @@ impl FetchData {
     /// # use fetch_data::FetchDataError;
     /// # Ok::<(), FetchDataError>(())
     /// ```
-    pub fn fetch_files<I, P>(&self, path_list: I) -> Result<Vec<PathBuf>, FetchDataError>
-    where
-        // Any list-like iterable of path-like items
-        I: IntoIterator<Item = P>,
-        P: AsRef<Path>,
-    {
+    #[anyinput]
+    pub fn fetch_files(&self, path_list: AnyIter<AnyPath>) -> Result<Vec<PathBuf>, FetchDataError> {
         let lock = self.lock();
         let internals = FetchData::internals(lock.as_ref())?;
         let hash_registry = &internals.hash_registry;
@@ -244,11 +234,11 @@ impl FetchData {
     /// # use fetch_data::FetchDataError;
     /// # Ok::<(), FetchDataError>(())
     /// ```
-    pub fn gen_registry_contents<I, P>(&self, path_list: I) -> Result<String, FetchDataError>
-    where
-        I: IntoIterator<Item = P>,
-        P: AsRef<Path>,
-    {
+    #[anyinput]
+    pub fn gen_registry_contents(
+        &self,
+        path_list: AnyIter<AnyPath>,
+    ) -> Result<String, FetchDataError> {
         let lock = self.lock();
         let internals = FetchData::internals(lock.as_ref())?;
         let cache_dir = &internals.cache_dir;
@@ -353,20 +343,16 @@ pub enum FetchDataSpecificError {
 /// # use fetch_data::FetchDataError;
 /// # Ok::<(), FetchDataError>(())
 /// ```
-pub fn fetch<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
-    url: U,
-    hash: H,
-    path: P,
-) -> Result<(), FetchDataError> {
-    let path = path.as_ref();
+#[anyinput]
+pub fn fetch(url: AnyString, hash: AnyString, path: AnyPath) -> Result<(), FetchDataError> {
     if !path.exists() {
         download(url, &path)?;
     }
     let actual_hash = hash_file(&path)?;
-    if !actual_hash.eq(hash.as_ref()) {
+    if !actual_hash.eq(hash) {
         return Err(FetchDataSpecificError::DownloadedFileWrongHash(
             path.display().to_string(),
-            hash.as_ref().to_string(),
+            hash.to_string(),
             actual_hash,
         )
         .into());
@@ -393,11 +379,8 @@ pub fn fetch<U: AsRef<str>, H: AsRef<str>, P: AsRef<Path>>(
 /// # use fetch_data::FetchDataError;
 /// # Ok::<(), FetchDataError>(())
 /// ```
-pub fn hash_download<U: AsRef<str>, P: AsRef<Path>>(
-    url: U,
-    path: P,
-) -> Result<String, FetchDataError> {
-    let path = path.as_ref();
+#[anyinput]
+pub fn hash_download(url: AnyString, path: AnyPath) -> Result<String, FetchDataError> {
     download(url, &path)?;
     hash_file(&path)
 }
@@ -421,7 +404,8 @@ pub fn hash_download<U: AsRef<str>, P: AsRef<Path>>(
 /// assert!(hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
 /// # use fetch_data::FetchDataError;
 /// # Ok::<(), FetchDataError>(())
-pub fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchDataError> {
+#[anyinput]
+pub fn hash_file(path: AnyPath) -> Result<String, FetchDataError> {
     let mut sha256 = Sha256::new();
     let mut file = File::open(path)?;
 
@@ -451,9 +435,9 @@ pub fn hash_file<P: AsRef<Path>>(path: P) -> Result<String, FetchDataError> {
 /// # use fetch_data::FetchDataError;
 /// # Ok::<(), FetchDataError>(())
 /// ```
-pub fn download<S: AsRef<str>, P: AsRef<Path>>(url: S, path: P) -> Result<(), FetchDataError> {
-    let path = path.as_ref();
-    let req = ureq::get(url.as_ref()).call()?;
+#[anyinput]
+pub fn download(url: AnyString, path: AnyPath) -> Result<(), FetchDataError> {
+    let req = ureq::get(url).call()?;
     let mut reader = req.into_reader();
     let mut file = File::create(&path)?;
     std::io::copy(&mut reader, &mut file)?;
@@ -515,9 +499,8 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Fe
 /// # use fetch_data::FetchDataError;
 /// # Ok::<(), FetchDataError>(())
 /// ```
-pub fn dir_to_file_list<P: AsRef<Path>>(
-    path: P,
-) -> Result<Vec<std::ffi::OsString>, FetchDataError> {
+#[anyinput]
+pub fn dir_to_file_list(path: AnyPath) -> Result<Vec<std::ffi::OsString>, FetchDataError> {
     let file_list = read_dir(path)?
         .map(|res| res.map(|e| e.file_name()))
         .collect::<Result<Vec<_>, std::io::Error>>()?;
@@ -580,6 +563,7 @@ static STATIC_FETCH_DATA: FetchData = FetchData::new(
 
 /// A sample sample_file. Don't use this. Instead, define your own `sample_file` function
 /// that knows how to fetch your data files.
-pub fn sample_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, FetchDataError> {
+#[anyinput]
+pub fn sample_file(path: AnyPath) -> Result<PathBuf, FetchDataError> {
     STATIC_FETCH_DATA.fetch_file(path)
 }
