@@ -1,5 +1,5 @@
 [package]
-version = "0.1.5"
+version = "0.1.6"
 name = "fetch-data"
 description = "Fetch data files from a URL, but only if needed. Verify contents via SHA256."
 repository = "https://github.com/CarlKCarlK/fetch-data"
@@ -22,4 +22,4 @@ ureq = { version = "2.4.0", features = [] }
 thiserror = "1.0.30"
 directories = "4.0.1"
 temp_testdir = "0.2.3"
-anyinput = "0.1.4"
+anyinput = "0.1.6"
