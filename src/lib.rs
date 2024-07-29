@@ -1,8 +1,12 @@
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
 #![warn(missing_docs)]
+#![allow(clippy::missing_errors_doc)]
 #![doc = include_str!("../README.md")]
 
 use anyinput::anyinput;
-/// Used to construct global FetchData instance.
+/// Used to construct global `FetchData` instance.
 ///
 /// This is a re-export from crate [`ctor`](https://crates.io/crates/ctor).
 pub use ctor::ctor;
@@ -24,7 +28,7 @@ use thiserror::Error;
 /// `FetchData` works well with multithreaded testing, It is thread safe (via a Mutex).
 ///
 pub struct FetchData {
-    mutex: Mutex<Result<Internals, FetchDataError>>,
+    mutex: Mutex<Result<Internals, Box<FetchDataError>>>,
 }
 
 impl FetchData {
@@ -70,7 +74,7 @@ impl FetchData {
     /// let local_path = fetch_data.fetch_file("small.bim")?;
     /// assert!(local_path.exists());
     /// # use fetch_data::FetchDataError;
-    /// # Ok::<(), FetchDataError>(())
+    /// # Ok::<(), Box<FetchDataError>>(())
     /// ```
     #[anyinput]
     pub fn new(
@@ -80,8 +84,8 @@ impl FetchData {
         qualifier: AnyString,
         organization: AnyString,
         application: AnyString,
-    ) -> FetchData {
-        FetchData {
+    ) -> Self {
+        Self {
             mutex: Mutex::new(Internals::new(
                 registry_contents,
                 url_root,
@@ -93,12 +97,11 @@ impl FetchData {
         }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<Result<Internals, FetchDataError>> {
-        let lock = match self.mutex.lock() {
+    fn lock(&self) -> std::sync::MutexGuard<Result<Internals, Box<FetchDataError>>> {
+        match self.mutex.lock() {
             Ok(lock) => lock,
             Err(err) => err.into_inner(),
-        };
-        lock
+        }
     }
 
     /// Fetch data files from a URL, but only if needed. Verify contents via a hash.
@@ -123,10 +126,10 @@ impl FetchData {
     /// let local_path = fetch_data.fetch_file("small.bim")?;
     /// assert!(local_path.exists());
     /// # use fetch_data::FetchDataError;
-    /// # Ok::<(), FetchDataError>(())
+    /// # Ok::<(), Box<FetchDataError>>(())
     /// ```
     #[anyinput]
-    pub fn fetch_file(&self, path: AnyPath) -> Result<PathBuf, FetchDataError> {
+    pub fn fetch_file(&self, path: AnyPath) -> Result<PathBuf, Box<FetchDataError>> {
         let path_list = vec![path.to_path_buf()];
         let vec = self.fetch_files(path_list)?;
         Ok(vec[0].clone())
@@ -155,12 +158,18 @@ impl FetchData {
     /// let local_path_list = fetch_data.fetch_files(["small.bim", "small.bim"])?;
     /// assert!(local_path_list[0].exists() && local_path_list[1].exists());
     /// # use fetch_data::FetchDataError;
-    /// # Ok::<(), FetchDataError>(())
+    /// # Ok::<(), Box<FetchDataError>>(())
     /// ```
     #[anyinput]
-    pub fn fetch_files(&self, path_list: AnyIter<AnyPath>) -> Result<Vec<PathBuf>, FetchDataError> {
+    #[allow(clippy::significant_drop_tightening)]
+    pub fn fetch_files(
+        &self,
+        path_list: AnyIter<AnyPath>,
+    ) -> Result<Vec<PathBuf>, Box<FetchDataError>> {
         let lock = self.lock();
-        let internals = FetchData::internals(lock.as_ref())?;
+        // Convert Result to reference the error inside the Box for compatibility with internals()
+        let lock_ref = lock.as_ref().map_err(|e| &**e);
+        let internals = Self::internals(lock_ref)?;
         let hash_registry = &internals.hash_registry;
         let cache_dir = &internals.cache_dir;
         let url_root = &internals.url_root;
@@ -169,23 +178,19 @@ impl FetchData {
         for path in path_list {
             let path = path.as_ref();
 
-            let path_as_string = if let Some(path_as_string) = path.to_str() {
-                path_as_string
-            } else {
-                return Err(FetchDataSpecificError::UnknownOrBadFile("???".to_string()).into());
-            };
+            let path_as_string = path.to_str().ok_or_else(|| {
+                Box::new(FetchDataSpecificError::UnknownOrBadFile("???".to_string()).into())
+            })?;
 
-            let hash = if let Some(hash) = hash_registry.get(path) {
-                hash
-            } else {
-                return Err(
+            let Some(hash) = hash_registry.get(path) else {
+                return Err(Box::new(
                     FetchDataSpecificError::UnknownOrBadFile(path_as_string.to_string()).into(),
-                );
+                ));
             };
 
             let local_path = cache_dir.join(path);
             let url = format!("{url_root}{path_as_string}");
-            fetch(url, &hash, &local_path)?;
+            fetch(url, hash, &local_path)?;
             local_list.push(local_path);
         }
 
@@ -194,13 +199,14 @@ impl FetchData {
 
     fn internals<'a>(
         lock_ref: Result<&'a Internals, &FetchDataError>,
-    ) -> Result<&'a Internals, FetchDataError> {
+    ) -> Result<&'a Internals, Box<FetchDataError>> {
         match lock_ref {
             Ok(internals) => Ok(internals),
-            Err(e) => Err(FetchDataSpecificError::FetchDataNewFailed(e.to_string()).into()),
+            Err(e) => Err(Box::new(
+                FetchDataSpecificError::FetchDataNewFailed(e.to_string()).into(),
+            )),
         }
     }
-
     /// Compute registry contents by downloading items and hashing them.
     ///
     /// # Tips
@@ -232,15 +238,18 @@ impl FetchData {
     ///                                  // small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
     ///                                  // small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e
     /// # use fetch_data::FetchDataError;
-    /// # Ok::<(), FetchDataError>(())
+    /// # Ok::<(), Box<FetchDataError>>(())
     /// ```
     #[anyinput]
+    #[allow(clippy::significant_drop_tightening)]
     pub fn gen_registry_contents(
         &self,
         path_list: AnyIter<AnyPath>,
-    ) -> Result<String, FetchDataError> {
+    ) -> Result<String, Box<FetchDataError>> {
         let lock = self.lock();
-        let internals = FetchData::internals(lock.as_ref())?;
+        // Convert Result to reference the error inside the Box for compatibility with internals()
+        let lock_ref = lock.as_ref().map_err(|e| &**e);
+        let internals = Self::internals(lock_ref)?;
         let cache_dir = &internals.cache_dir;
         let url_root = &internals.url_root;
 
@@ -248,10 +257,10 @@ impl FetchData {
         for path in path_list {
             let path = path.as_ref();
 
-            let path_as_string = if let Some(path_as_string) = path.to_str() {
-                path_as_string
-            } else {
-                return Err(FetchDataSpecificError::UnknownOrBadFile("???".to_string()).into());
+            let Some(path_as_string) = path.to_str() else {
+                return Err(Box::new(
+                    FetchDataSpecificError::UnknownOrBadFile("???".to_string()).into(),
+                ));
             };
 
             let local_path = cache_dir.join(path);
@@ -265,9 +274,12 @@ impl FetchData {
     }
 
     /// Return the path to the local cache directory.
-    pub fn cache_dir(&self) -> Result<PathBuf, FetchDataError> {
+    #[allow(clippy::significant_drop_tightening)]
+    pub fn cache_dir(&self) -> Result<PathBuf, Box<FetchDataError>> {
         let lock = self.lock();
-        let internals = FetchData::internals(lock.as_ref())?;
+        // Convert Result to reference the error inside the Box for compatibility with internals()
+        let lock_ref = lock.as_ref().map_err(|e| &**e);
+        let internals = Self::internals(lock_ref)?;
         let cache_dir = &internals.cache_dir;
         Ok(cache_dir.to_owned())
     }
@@ -341,21 +353,23 @@ pub enum FetchDataSpecificError {
 /// )?;
 /// assert!(&path.exists());
 /// # use fetch_data::FetchDataError;
-/// # Ok::<(), FetchDataError>(())
+/// # Ok::<(), Box<FetchDataError>>(())
 /// ```
 #[anyinput]
-pub fn fetch(url: AnyString, hash: AnyString, path: AnyPath) -> Result<(), FetchDataError> {
+pub fn fetch(url: AnyString, hash: AnyString, path: AnyPath) -> Result<(), Box<FetchDataError>> {
     if !path.exists() {
-        download(url, &path)?;
+        download(url, path)?;
     }
-    let actual_hash = hash_file(&path)?;
+    let actual_hash = hash_file(path)?;
     if !actual_hash.eq(hash) {
-        return Err(FetchDataSpecificError::DownloadedFileWrongHash(
-            path.display().to_string(),
-            hash.to_string(),
-            actual_hash,
-        )
-        .into());
+        return Err(Box::new(
+            FetchDataSpecificError::DownloadedFileWrongHash(
+                path.display().to_string(),
+                hash.to_string(),
+                actual_hash,
+            )
+            .into(),
+        ));
     }
     Ok(())
 }
@@ -377,12 +391,12 @@ pub fn fetch(url: AnyString, hash: AnyString, path: AnyPath) -> Result<(), Fetch
 /// )?;
 /// assert!(hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
 /// # use fetch_data::FetchDataError;
-/// # Ok::<(), FetchDataError>(())
+/// # Ok::<(), Box<FetchDataError>>(())
 /// ```
 #[anyinput]
-pub fn hash_download(url: AnyString, path: AnyPath) -> Result<String, FetchDataError> {
-    download(url, &path)?;
-    hash_file(&path)
+pub fn hash_download(url: AnyString, path: AnyPath) -> Result<String, Box<FetchDataError>> {
+    download(url, path)?;
+    hash_file(path)
 }
 
 /// Compute the hash (SHA256) of a local file.
@@ -403,13 +417,13 @@ pub fn hash_download(url: AnyString, path: AnyPath) -> Result<String, FetchDataE
 /// let hash = hash_file(&path)?;
 /// assert!(hash.eq("36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2"));
 /// # use fetch_data::FetchDataError;
-/// # Ok::<(), FetchDataError>(())
+/// # Ok::<(), Box<FetchDataError>>(())
 #[anyinput]
-pub fn hash_file(path: AnyPath) -> Result<String, FetchDataError> {
+pub fn hash_file(path: AnyPath) -> Result<String, Box<FetchDataError>> {
     let mut sha256 = Sha256::new();
-    let mut file = File::open(path)?;
+    let mut file = File::open(path).map_err(|e| Box::new(e.into()))?;
 
-    std::io::copy(&mut file, &mut sha256)?;
+    std::io::copy(&mut file, &mut sha256).map_err(|e| Box::new(e.into()))?;
     let hash_bytes = sha256.finalize();
 
     let hex_hash = base16ct::lower::encode_string(&hash_bytes);
@@ -433,45 +447,45 @@ pub fn hash_file(path: AnyPath) -> Result<String, FetchDataError> {
 /// )?;
 /// assert!(path.exists());
 /// # use fetch_data::FetchDataError;
-/// # Ok::<(), FetchDataError>(())
+/// # Ok::<(), Box<FetchDataError>>(())
 /// ```
 #[anyinput]
-pub fn download(url: AnyString, path: AnyPath) -> Result<(), FetchDataError> {
-    let req = ureq::get(url).call()?;
+pub fn download(url: AnyString, path: AnyPath) -> Result<(), Box<FetchDataError>> {
+    let req = ureq::get(url).call().map_err(|e| Box::new(e.into()))?;
     let mut reader = req.into_reader();
-    let mut file = File::create(&path)?;
-    std::io::copy(&mut reader, &mut file)?;
+    let mut file = File::create(path).map_err(|e| Box::new(e.into()))?;
+    std::io::copy(&mut reader, &mut file).map_err(|e| Box::new(e.into()))?;
     if !path.exists() {
-        return Err(
+        return Err(Box::new(
             FetchDataSpecificError::DownloadedFileNotSeen(path.display().to_string()).into(),
-        );
+        ));
     }
     Ok(())
 }
 
-fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, FetchDataError> {
+fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Box<FetchDataError>> {
     let mut hash_map = HashMap::new();
     for line in registry_contents.lines() {
         let mut parts = line.split_whitespace();
 
         let url = if let Some(url) = parts.next() {
             if url.is_empty() {
-                return Err(FetchDataSpecificError::RegistryProblem().into());
+                return Err(Box::new(FetchDataSpecificError::RegistryProblem().into()));
             }
             PathBuf::from(url)
         } else {
-            return Err(FetchDataSpecificError::RegistryProblem().into());
+            return Err(Box::new(FetchDataSpecificError::RegistryProblem().into()));
         };
         let hash = if let Some(hash) = parts.next() {
             hash.to_string()
         } else {
-            return Err(FetchDataSpecificError::RegistryProblem().into());
+            return Err(Box::new(FetchDataSpecificError::RegistryProblem().into()));
         };
         if hash.is_empty() || parts.next().is_some() {
-            return Err(FetchDataSpecificError::RegistryProblem().into());
+            return Err(Box::new(FetchDataSpecificError::RegistryProblem().into()));
         }
 
-        hash_map.insert(url, hash.to_owned());
+        hash_map.insert(url, hash.clone());
     }
     Ok(hash_map)
 }
@@ -497,13 +511,15 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Fe
 /// let file_list = dir_to_file_list(temp_dir)?;
 /// println!("{file_list:?}"); // Prints ["small.bim", "small.fam"]
 /// # use fetch_data::FetchDataError;
-/// # Ok::<(), FetchDataError>(())
+/// # Ok::<(), Box<FetchDataError>>(())
 /// ```
 #[anyinput]
-pub fn dir_to_file_list(path: AnyPath) -> Result<Vec<std::ffi::OsString>, FetchDataError> {
-    let file_list = read_dir(path)?
+pub fn dir_to_file_list(path: AnyPath) -> Result<Vec<std::ffi::OsString>, Box<FetchDataError>> {
+    let file_list = read_dir(path)
+        .map_err(|e| Box::new(e.into()))?
         .map(|res| res.map(|e| e.file_name()))
-        .collect::<Result<Vec<_>, std::io::Error>>()?;
+        .collect::<Result<Vec<_>, std::io::Error>>()
+        .map_err(|e| Box::new(e.into()))?;
     Ok(file_list)
 }
 struct Internals {
@@ -520,11 +536,11 @@ impl Internals {
         qualifier: &str,
         organization: &str,
         application: &str,
-    ) -> Result<Internals, FetchDataError> {
-        let cache_dir = Internals::cache_dir(env_key, qualifier, organization, application)?;
+    ) -> Result<Self, Box<FetchDataError>> {
+        let cache_dir = Self::cache_dir(env_key, qualifier, organization, application)?;
         let hash_registry = hash_registry(registry_contents)?;
 
-        Ok(Internals {
+        Ok(Self {
             cache_dir,
             hash_registry,
             url_root: url_root.to_string(),
@@ -536,16 +552,18 @@ impl Internals {
         qualifier: &str,
         organization: &str,
         application: &str,
-    ) -> Result<PathBuf, FetchDataError> {
+    ) -> Result<PathBuf, Box<FetchDataError>> {
         let cache_dir = if let Ok(cache_dir) = std::env::var(env_key) {
             PathBuf::from(cache_dir)
         } else if let Some(proj_dirs) = ProjectDirs::from(qualifier, organization, application) {
             proj_dirs.cache_dir().to_owned()
         } else {
-            return Err(FetchDataSpecificError::CannotCreateCacheDir().into());
+            return Err(Box::new(
+                FetchDataSpecificError::CannotCreateCacheDir().into(),
+            ));
         };
         if !cache_dir.exists() {
-            fs::create_dir_all(&cache_dir)?;
+            fs::create_dir_all(&cache_dir).map_err(|e| Box::new(e.into()))?;
         }
         Ok(cache_dir)
     }
@@ -564,6 +582,6 @@ static STATIC_FETCH_DATA: FetchData = FetchData::new(
 /// A sample sample_file. Don't use this. Instead, define your own `sample_file` function
 /// that knows how to fetch your data files.
 #[anyinput]
-pub fn sample_file(path: AnyPath) -> Result<PathBuf, FetchDataError> {
+pub fn sample_file(path: AnyPath) -> Result<PathBuf, Box<FetchDataError>> {
     STATIC_FETCH_DATA.fetch_file(path)
 }

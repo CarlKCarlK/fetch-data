@@ -8,14 +8,14 @@ use fetch_data::{
 use temp_testdir::TempDir;
 
 #[test]
-fn static_data() -> Result<(), FetchDataError> {
+fn static_data() -> Result<(), Box<FetchDataError>> {
     let local_path = sample_file("small.bim")?;
     assert!(local_path.exists());
     Ok(())
 }
 
 #[test]
-fn just_in_time_data() -> Result<(), FetchDataError> {
+fn just_in_time_data() -> Result<(), Box<FetchDataError>> {
     let fetch_data = FetchData::new(
         include_str!("../registry.txt"),
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/",
@@ -31,7 +31,7 @@ fn just_in_time_data() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn create_registry_file() -> Result<(), FetchDataError> {
+fn create_registry_file() -> Result<(), Box<FetchDataError>> {
     // Create list of files in data directory
 
     let fetch_data = FetchData::new(
@@ -50,7 +50,7 @@ fn create_registry_file() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn gen_registry_contents_example() -> Result<(), FetchDataError> {
+fn gen_registry_contents_example() -> Result<(), Box<FetchDataError>> {
     let fetch_data = FetchData::new(
         "", // ignored
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/",
@@ -68,7 +68,7 @@ fn gen_registry_contents_example() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn cache_dir() -> Result<(), FetchDataError> {
+fn cache_dir() -> Result<(), Box<FetchDataError>> {
     let cache_dir = STATIC_TEST_API.cache_dir()?;
     assert!(cache_dir.exists());
     println!("{cache_dir:?}",);
@@ -76,7 +76,7 @@ fn cache_dir() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn one_off_fetch() -> Result<(), FetchDataError> {
+fn one_off_fetch() -> Result<(), Box<FetchDataError>> {
     let temp_dir = TempDir::default();
     let output_file = temp_dir.join("small.fam");
     fetch(
@@ -90,7 +90,7 @@ fn one_off_fetch() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn one_off_hash_download() -> Result<(), FetchDataError> {
+fn one_off_hash_download() -> Result<(), Box<FetchDataError>> {
     let temp_dir = TempDir::default();
     let path = temp_dir.join("small.fam");
     let hash = hash_download(
@@ -102,7 +102,7 @@ fn one_off_hash_download() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn one_off_just_download() -> Result<(), FetchDataError> {
+fn one_off_just_download() -> Result<(), Box<FetchDataError>> {
     let temp_dir = TempDir::default();
     let path = temp_dir.join("small.fam");
     download(
@@ -114,7 +114,7 @@ fn one_off_just_download() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn one_off_just_hash_file() -> Result<(), FetchDataError> {
+fn one_off_just_hash_file() -> Result<(), Box<FetchDataError>> {
     let temp_dir = TempDir::default();
     let path = temp_dir.join("small.fam");
     download(
@@ -127,7 +127,7 @@ fn one_off_just_hash_file() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn one_off_just_dir_to_file_list() -> Result<(), FetchDataError> {
+fn one_off_just_dir_to_file_list() -> Result<(), Box<FetchDataError>> {
     let temp_dir = TempDir::default();
     download(
         "https://raw.githubusercontent.com/CarlKCarlK/fetch-data/main/tests/data/small.fam",
@@ -143,7 +143,7 @@ fn one_off_just_dir_to_file_list() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn bad_fetch_data() -> Result<(), FetchDataError> {
+fn bad_fetch_data() -> Result<(), Box<FetchDataError>> {
     // Create list of files in data directory
 
     let fetch_data = FetchData::new(
@@ -155,18 +155,18 @@ fn bad_fetch_data() -> Result<(), FetchDataError> {
         "Bar App",
     );
 
-    let result = fetch_data.fetch_file("small.bim");
+    let result: Result<PathBuf, Box<FetchDataError>> = fetch_data.fetch_file("small.bim");
 
-    match result {
-        Err(FetchDataError::FetchDataError(FetchDataSpecificError::FetchDataNewFailed(_))) => (),
-        _ => panic!("test failure"),
-    };
-
-    Ok(())
+    if let Err(e) = result {
+        if let FetchDataError::FetchDataError(FetchDataSpecificError::FetchDataNewFailed(_)) = *e {
+            return Ok(());
+        }
+    }
+    panic!("test failure");
 }
 
 #[test]
-fn fetch_data_new_example() -> Result<(), FetchDataError> {
+fn fetch_data_new_example() -> Result<(), Box<FetchDataError>> {
     let fetch_data = FetchData::new(
         "small.fam 36e0086c0353ff336d0533330dbacb12c75e37dc3cba174313635b98dfe86ed2
                            small.bim 56b6657a3766e2e52273f89d28be6135f9424ca1d204d29f3fa1c5a90eca794e",
@@ -183,7 +183,7 @@ fn fetch_data_new_example() -> Result<(), FetchDataError> {
 }
 
 #[test]
-fn readme_example1() -> Result<(), FetchDataError> {
+fn readme_example1() -> Result<(), anyhow::Error> {
     use fetch_data::sample_file;
 
     let path = sample_file("small.fam")?;
@@ -204,6 +204,6 @@ static STATIC_TEST_API: FetchData = FetchData::new(
 /// A sample sample_file. Don't use this. Instead, define your own that knows
 /// how to fetch your data files.
 #[anyinput]
-pub fn sample_file(path: AnyPath) -> Result<PathBuf, FetchDataError> {
+pub fn sample_file(path: AnyPath) -> Result<PathBuf, Box<FetchDataError>> {
     STATIC_TEST_API.fetch_file(path)
 }
