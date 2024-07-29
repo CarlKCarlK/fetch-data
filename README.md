@@ -40,8 +40,7 @@ You can set up [`FetchData`](https://docs.rs/fetch-data/latest/fetch_data/struct
  [`FetchData`](https://docs.rs/fetch-data/latest/fetch_data/struct.FetchData.html#method.new)
   instance that reads your `registry.txt` file. Give it:
   * the URL root from which to download the files
-  * an environment variable telling the local data directory
-     in which to store the files
+  * an environment variable telling the local data directory in which to store the files
   * a `qualifier`, `organization`, and `application` -- Used to
      create a local data
      directory when the environment variable is not set. See crate [ProjectsDir](https://docs.rs/directories/latest/directories/struct.ProjectDirs.html#method.from_path) for details.
