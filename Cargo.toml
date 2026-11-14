@@ -1,5 +1,5 @@
 [package]
-version = "0.2.0"
+version = "0.2.1"
 name = "fetch-data"
 description = "Fetch data files from a URL, but only if needed. Verify contents via SHA256. Some Python Pooch compatibility."
 repository = "https://github.com/CarlKCarlK/fetch-data"
@@ -12,6 +12,7 @@ keywords = ["testing", "data", "web", "request"]
 categories = ["science"]
 homepage = "https://github.com/CarlKCarlK/fetch-data"
 edition = "2021"
+rust-version = "1.85"
 
 
 [dependencies]
