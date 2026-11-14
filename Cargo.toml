@@ -24,6 +24,7 @@ ureq = { version = "2.10.0", features = [] }
 thiserror = "1.0.63"
 directories = "5.0.1"
 temp_testdir = "0.2.3"
+tempfile = "3"
 anyinput = "0.1.6"
 
 [dev-dependencies]

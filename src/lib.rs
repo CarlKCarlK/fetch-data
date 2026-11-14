@@ -15,15 +15,12 @@ use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
-    fmt::Write as _,
     fs::{self, read_dir, File},
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Mutex,
-    },
+    sync::Mutex,
     time::Duration,
 };
+use tempfile::NamedTempFile;
 use thiserror::Error;
 
 /// Used to fetch data files from a URL, if needed. It verifies file contents via a hash.
@@ -272,7 +269,10 @@ impl FetchData {
             let url = format!("{url_root}{path_as_string}");
             download(url, &local_path)?;
             let hash = hash_file(&local_path)?;
-            let _ = writeln!(s, "{} {hash}", path.display());
+            s.push_str(path_as_string);
+            s.push(' ');
+            s.push_str(&hash);
+            s.push('\n');
         }
 
         Ok(s)
@@ -497,33 +497,28 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
 
 fn download_once(url: &str, path: &Path) -> Result<(), Box<FetchDataError>> {
-    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
-
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(CONNECT_TIMEOUT)
         .timeout_read(READ_TIMEOUT)
         .build();
     let response = agent.get(url).call().map_err(|e| Box::new(e.into()))?;
 
-    let mut temp_name = path.file_name().unwrap_or_default().to_os_string();
-    temp_name.push(format!(
-        ".{}-{}.part",
-        std::process::id(),
-        NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed)
-    ));
-    let temp_path = path.with_file_name(temp_name);
-
-    let result = (|| -> std::io::Result<()> {
-        let mut file = File::create(&temp_path)?;
-        std::io::copy(&mut response.into_reader(), &mut file)?;
-        file.sync_all()?;
-        drop(file);
-        fs::rename(&temp_path, path)
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temp_path);
-    }
-    result.map_err(|e| Box::new(e.into()))
+    let directory = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    // The temporary file is deleted if it is dropped before `persist`, so any
+    // error below leaves no partial file behind.
+    let mut temp_file = NamedTempFile::new_in(directory).map_err(|e| Box::new(e.into()))?;
+    std::io::copy(&mut response.into_reader(), &mut temp_file).map_err(|e| Box::new(e.into()))?;
+    temp_file
+        .as_file()
+        .sync_all()
+        .map_err(|e| Box::new(e.into()))?;
+    temp_file
+        .persist(path)
+        .map_err(|e| Box::new(e.error.into()))?;
+    Ok(())
 }
 
 fn is_transient(error: &FetchDataError) -> bool {
@@ -721,16 +716,13 @@ mod download_tests {
         (url, handle)
     }
 
-    fn part_files(dir: &std::path::Path) -> Vec<String> {
-        std::fs::read_dir(dir)
+    fn file_names(dir: &std::path::Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
             .unwrap()
-            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-            .filter(|n| {
-                std::path::Path::new(n)
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("part"))
-            })
-            .collect()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
     }
 
     #[test]
@@ -769,7 +761,7 @@ mod download_tests {
         download(&url, &path).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), b"complete");
         assert_eq!(server.join().unwrap(), 2);
-        assert_eq!(part_files(&temp_dir), Vec::<String>::new());
+        assert_eq!(file_names(&temp_dir), ["small.fam"]);
     }
 
     #[test]
@@ -782,7 +774,7 @@ mod download_tests {
         assert!(download(&url, &path).is_err());
         assert_eq!(server.join().unwrap(), DOWNLOAD_ATTEMPTS as usize);
         assert_eq!(std::fs::read(&path).unwrap(), b"old");
-        assert_eq!(part_files(&temp_dir), Vec::<String>::new());
+        assert_eq!(file_names(&temp_dir), ["small.fam"]);
     }
 
     #[test]
