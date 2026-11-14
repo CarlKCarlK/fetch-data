@@ -25,7 +25,7 @@ Features
 --------
 
 * Thread-safe -- allowing it to be used with Rust's multithreaded testing framework.
-* Inspired by Python's popular [Pooch](https://pypi.org/project/pooch/) and our PySnpTools [filecache module](https://fastlmm.github.io/PySnpTools/#module-pysnptools.util.filecache).
+* Inspired by Python's popular [Pooch](https://pypi.org/project/pooch/) and our [PySnpTools filecache module](https://fastlmm.github.io/PySnpTools/#module-pysnptools.util.filecache).
 * Avoids run-times such as Tokio (by using [`ureq`](https://crates.io/crates/ureq) to download files via blocking I/O).
 
 Suggested Usage

@@ -15,9 +15,13 @@ use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
+    env,
+    ffi::OsString,
     fs::{self, read_dir, File},
+    io::{self, ErrorKind},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, MutexGuard},
+    thread,
     time::Duration,
 };
 use tempfile::NamedTempFile;
@@ -99,7 +103,7 @@ impl FetchData {
         }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, Result<Internals, Box<FetchDataError>>> {
+    fn lock(&self) -> MutexGuard<'_, Result<Internals, Box<FetchDataError>>> {
         match self.mutex.lock() {
             Ok(lock) => lock,
             Err(err) => err.into_inner(),
@@ -300,7 +304,7 @@ pub enum FetchDataError {
 
     #[allow(missing_docs)]
     #[error(transparent)]
-    IOError(#[from] std::io::Error),
+    IOError(#[from] io::Error),
 
     #[allow(missing_docs)]
     #[error(transparent)]
@@ -433,7 +437,7 @@ pub fn hash_file(path: AnyPath) -> Result<String, Box<FetchDataError>> {
     let mut sha256 = Sha256::new();
     let mut file = File::open(path).map_err(|e| Box::new(e.into()))?;
 
-    std::io::copy(&mut file, &mut sha256).map_err(|e| Box::new(e.into()))?;
+    io::copy(&mut file, &mut sha256).map_err(|e| Box::new(e.into()))?;
     let hash_bytes = sha256.finalize();
 
     let hex_hash = base16ct::lower::encode_string(&hash_bytes);
@@ -471,7 +475,7 @@ pub fn download(url: AnyString, path: AnyPath) -> Result<(), Box<FetchDataError>
         match download_once(url, path) {
             Ok(()) => break,
             Err(e) if attempt < DOWNLOAD_ATTEMPTS && is_transient(&e) => {
-                std::thread::sleep(RETRY_BASE_DELAY * (1 << (attempt - 1)));
+                thread::sleep(RETRY_BASE_DELAY * (1 << (attempt - 1)));
                 attempt += 1;
             }
             Err(e) => return Err(e),
@@ -510,7 +514,7 @@ fn download_once(url: &str, path: &Path) -> Result<(), Box<FetchDataError>> {
     // The temporary file is deleted if it is dropped before `persist`, so any
     // error below leaves no partial file behind.
     let mut temp_file = NamedTempFile::new_in(directory).map_err(|e| Box::new(e.into()))?;
-    std::io::copy(&mut response.into_reader(), &mut temp_file).map_err(|e| Box::new(e.into()))?;
+    io::copy(&mut response.into_reader(), &mut temp_file).map_err(|e| Box::new(e.into()))?;
     temp_file
         .as_file()
         .sync_all()
@@ -530,13 +534,13 @@ fn is_transient(error: &FetchDataError) -> bool {
         // Reading the response body failed partway (reset, timeout, truncation).
         FetchDataError::IOError(e) => matches!(
             e.kind(),
-            std::io::ErrorKind::ConnectionReset
-                | std::io::ErrorKind::ConnectionAborted
-                | std::io::ErrorKind::BrokenPipe
-                | std::io::ErrorKind::TimedOut
-                | std::io::ErrorKind::UnexpectedEof
-                | std::io::ErrorKind::Interrupted
-                | std::io::ErrorKind::WouldBlock
+            ErrorKind::ConnectionReset
+                | ErrorKind::ConnectionAborted
+                | ErrorKind::BrokenPipe
+                | ErrorKind::TimedOut
+                | ErrorKind::UnexpectedEof
+                | ErrorKind::Interrupted
+                | ErrorKind::WouldBlock
         ),
         FetchDataError::FetchDataError(_) => false,
     }
@@ -593,11 +597,11 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Bo
 /// # Ok::<(), Box<FetchDataError>>(())
 /// ```
 #[anyinput]
-pub fn dir_to_file_list(path: AnyPath) -> Result<Vec<std::ffi::OsString>, Box<FetchDataError>> {
+pub fn dir_to_file_list(path: AnyPath) -> Result<Vec<OsString>, Box<FetchDataError>> {
     let file_list = read_dir(path)
         .map_err(|e| Box::new(e.into()))?
         .map(|res| res.map(|e| e.file_name()))
-        .collect::<Result<Vec<_>, std::io::Error>>()
+        .collect::<Result<Vec<_>, io::Error>>()
         .map_err(|e| Box::new(e.into()))?;
     Ok(file_list)
 }
@@ -632,7 +636,7 @@ impl Internals {
         organization: &str,
         application: &str,
     ) -> Result<PathBuf, Box<FetchDataError>> {
-        let cache_dir = if let Ok(cache_dir) = std::env::var(env_key) {
+        let cache_dir = if let Ok(cache_dir) = env::var(env_key) {
             PathBuf::from(cache_dir)
         } else if let Some(proj_dirs) = ProjectDirs::from(qualifier, organization, application) {
             proj_dirs.cache_dir().to_owned()
@@ -668,9 +672,13 @@ pub fn sample_file(path: AnyPath) -> Result<PathBuf, Box<FetchDataError>> {
 #[cfg(test)]
 mod download_tests {
     use super::{download, fetch, hash_file, DOWNLOAD_ATTEMPTS};
-    use std::io::{BufRead, BufReader, Write};
-    use std::net::TcpListener;
-    use std::thread::{self, JoinHandle};
+    use std::{
+        fs,
+        io::{BufRead, BufReader, Write},
+        net::TcpListener,
+        path::Path,
+        thread::{self, JoinHandle},
+    };
     use temp_testdir::TempDir;
 
     enum Reply {
@@ -716,8 +724,8 @@ mod download_tests {
         (url, handle)
     }
 
-    fn file_names(dir: &std::path::Path) -> Vec<String> {
-        let mut names: Vec<String> = std::fs::read_dir(dir)
+    fn file_names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
             .unwrap()
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
@@ -735,7 +743,7 @@ mod download_tests {
         let temp_dir = TempDir::default();
         let path = temp_dir.join("small.fam");
         download(&url, &path).unwrap();
-        assert_eq!(std::fs::read(&path).unwrap(), b"hello");
+        assert_eq!(fs::read(&path).unwrap(), b"hello");
         assert_eq!(server.join().unwrap(), 3);
     }
 
@@ -757,9 +765,9 @@ mod download_tests {
         ]);
         let temp_dir = TempDir::default();
         let path = temp_dir.join("small.fam");
-        std::fs::write(&path, b"old").unwrap();
+        fs::write(&path, b"old").unwrap();
         download(&url, &path).unwrap();
-        assert_eq!(std::fs::read(&path).unwrap(), b"complete");
+        assert_eq!(fs::read(&path).unwrap(), b"complete");
         assert_eq!(server.join().unwrap(), 2);
         assert_eq!(file_names(&temp_dir), ["small.fam"]);
     }
@@ -770,10 +778,10 @@ mod download_tests {
         let (url, server) = serve(replies);
         let temp_dir = TempDir::default();
         let path = temp_dir.join("small.fam");
-        std::fs::write(&path, b"old").unwrap();
+        fs::write(&path, b"old").unwrap();
         assert!(download(&url, &path).is_err());
         assert_eq!(server.join().unwrap(), DOWNLOAD_ATTEMPTS as usize);
-        assert_eq!(std::fs::read(&path).unwrap(), b"old");
+        assert_eq!(fs::read(&path).unwrap(), b"old");
         assert_eq!(file_names(&temp_dir), ["small.fam"]);
     }
 
@@ -782,12 +790,12 @@ mod download_tests {
         let (url, server) = serve(vec![Reply::Body(b"good")]);
         let temp_dir = TempDir::default();
         let good = temp_dir.join("good");
-        std::fs::write(&good, b"good").unwrap();
+        fs::write(&good, b"good").unwrap();
         let hash = hash_file(&good).unwrap();
         let path = temp_dir.join("small.fam");
-        std::fs::write(&path, b"partial from an old interrupted download").unwrap();
+        fs::write(&path, b"partial from an old interrupted download").unwrap();
         fetch(&url, &hash, &path).unwrap();
-        assert_eq!(std::fs::read(&path).unwrap(), b"good");
+        assert_eq!(fs::read(&path).unwrap(), b"good");
         assert_eq!(server.join().unwrap(), 1);
     }
 }
