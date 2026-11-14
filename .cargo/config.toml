@@ -1,0 +1,3 @@
+# Keep `cargo update` within the rust-version declared in Cargo.toml.
+[resolver]
+incompatible-rust-versions = "fallback"

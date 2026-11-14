@@ -1,26 +1,68 @@
 name: CI
+
+# CI runs on pull requests, monthly, and on demand. Pushes to main are not
+# retested: branch protection requires PRs to be up to date with main and to
+# pass "CI result" before merging.
 on:
-  push:
   schedule:
     - cron: '0 0 1 * *'
+  pull_request:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
-  ci:
+  test_rust:
+    name: Test Rust (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    - name: Test Rust
-      run: cargo test --verbose
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Rust (minimum supported version)
+        uses: dtolnay/rust-toolchain@cfcaf53ba4c621917ec7f78a66bff7a8848ddad4 # 1.85.0
+        with:
+          components: clippy, rustfmt
+      - name: Run Clippy and tests (minimum supported Rust, strict)
+        run: |
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --verbose
+      - name: Set up Rust (latest stable)
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # generic installer
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Run Clippy (latest stable, strict for clippy::all)
+        run: cargo clippy --locked --all-targets -- -D clippy::all
+      - name: Run tests (latest stable)
+        run: cargo test --locked --verbose
+
+  ci-result:
+    # The single required status check for branch protection. It runs even
+    # when other jobs fail, so a failure can never appear as a passing skip.
+    name: CI result
+    if: always()
+    needs: [test_rust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every CI job to succeed
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          jq -e 'all(.[]; . == "success")' <<< "$RESULTS"

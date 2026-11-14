@@ -15,10 +15,16 @@ use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
+    env,
+    ffi::OsString,
     fs::{self, read_dir, File},
-    path::PathBuf,
-    sync::Mutex,
+    io::{self, ErrorKind},
+    path::{Path, PathBuf},
+    sync::{Mutex, MutexGuard},
+    thread,
+    time::Duration,
 };
+use tempfile::NamedTempFile;
 use thiserror::Error;
 
 /// Used to fetch data files from a URL, if needed. It verifies file contents via a hash.
@@ -32,7 +38,7 @@ pub struct FetchData {
 }
 
 impl FetchData {
-    /// Create a new FetchData object.
+    /// Create a new `FetchData` object.
     ///
     /// # Errors
     ///
@@ -97,7 +103,7 @@ impl FetchData {
         }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<Result<Internals, Box<FetchDataError>>> {
+    fn lock(&self) -> MutexGuard<'_, Result<Internals, Box<FetchDataError>>> {
         match self.mutex.lock() {
             Ok(lock) => lock,
             Err(err) => err.into_inner(),
@@ -267,7 +273,10 @@ impl FetchData {
             let url = format!("{url_root}{path_as_string}");
             download(url, &local_path)?;
             let hash = hash_file(&local_path)?;
-            s.push_str(&format!("{} {hash}\n", path.display()));
+            s.push_str(path_as_string);
+            s.push(' ');
+            s.push_str(&hash);
+            s.push('\n');
         }
 
         Ok(s)
@@ -295,7 +304,7 @@ pub enum FetchDataError {
 
     #[allow(missing_docs)]
     #[error(transparent)]
-    IOError(#[from] std::io::Error),
+    IOError(#[from] io::Error),
 
     #[allow(missing_docs)]
     #[error(transparent)]
@@ -360,7 +369,12 @@ pub fn fetch(url: AnyString, hash: AnyString, path: AnyPath) -> Result<(), Box<F
     if !path.exists() {
         download(url, path)?;
     }
-    let actual_hash = hash_file(path)?;
+    let mut actual_hash = hash_file(path)?;
+    if !actual_hash.eq(hash) {
+        // A stale or corrupt local copy: replace it once before reporting a mismatch.
+        download(url, path)?;
+        actual_hash = hash_file(path)?;
+    }
     if !actual_hash.eq(hash) {
         return Err(Box::new(
             FetchDataSpecificError::DownloadedFileWrongHash(
@@ -423,7 +437,7 @@ pub fn hash_file(path: AnyPath) -> Result<String, Box<FetchDataError>> {
     let mut sha256 = Sha256::new();
     let mut file = File::open(path).map_err(|e| Box::new(e.into()))?;
 
-    std::io::copy(&mut file, &mut sha256).map_err(|e| Box::new(e.into()))?;
+    io::copy(&mut file, &mut sha256).map_err(|e| Box::new(e.into()))?;
     let hash_bytes = sha256.finalize();
 
     let hex_hash = base16ct::lower::encode_string(&hash_bytes);
@@ -449,18 +463,91 @@ pub fn hash_file(path: AnyPath) -> Result<String, Box<FetchDataError>> {
 /// # use fetch_data::FetchDataError;
 /// # Ok::<(), Box<FetchDataError>>(())
 /// ```
+///
+/// Transient failures (network errors, timeouts, HTTP 429 and 5xx) are retried
+/// up to three times with exponential backoff. The file is written under a
+/// temporary name and renamed into place only when complete, so an interrupted
+/// download never leaves a partial file at `path`.
 #[anyinput]
 pub fn download(url: AnyString, path: AnyPath) -> Result<(), Box<FetchDataError>> {
-    let req = ureq::get(url).call().map_err(|e| Box::new(e.into()))?;
-    let mut reader = req.into_reader();
-    let mut file = File::create(path).map_err(|e| Box::new(e.into()))?;
-    std::io::copy(&mut reader, &mut file).map_err(|e| Box::new(e.into()))?;
+    let mut attempt = 1;
+    loop {
+        match download_once(url, path) {
+            Ok(()) => break,
+            Err(error) if attempt < DOWNLOAD_ATTEMPTS && is_transient(&error) => {
+                thread::sleep(RETRY_BASE_DELAY * (1 << (attempt - 1)));
+                attempt += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
     if !path.exists() {
         return Err(Box::new(
             FetchDataSpecificError::DownloadedFileNotSeen(path.display().to_string()).into(),
         ));
     }
     Ok(())
+}
+
+/// A download is tried this many times in all before its error is returned.
+const DOWNLOAD_ATTEMPTS: u32 = 4;
+/// Wait before the first retry; doubled before each later one.
+#[cfg(not(test))]
+const RETRY_BASE_DELAY: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const RETRY_BASE_DELAY: Duration = Duration::from_millis(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Longest wait for more data before an attempt is abandoned and retried.
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
+
+fn download_once(url: &str, path: &Path) -> Result<(), Box<FetchDataError>> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(CONNECT_TIMEOUT)
+        .timeout_read(READ_TIMEOUT)
+        .build();
+    let response = agent
+        .get(url)
+        .call()
+        .map_err(|error| Box::new(error.into()))?;
+
+    let directory = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    // The temporary file is deleted if it is dropped before `persist`, so any
+    // error below leaves no partial file behind.
+    let mut temp_file = NamedTempFile::new_in(directory).map_err(|error| Box::new(error.into()))?;
+    io::copy(&mut response.into_reader(), &mut temp_file)
+        .map_err(|error| Box::new(error.into()))?;
+    temp_file
+        .as_file()
+        .sync_all()
+        .map_err(|error| Box::new(error.into()))?;
+    temp_file
+        .persist(path)
+        .map_err(|persist_error| Box::new(persist_error.error.into()))?;
+    Ok(())
+}
+
+fn is_transient(error: &FetchDataError) -> bool {
+    match error {
+        FetchDataError::UreqError(ureq_error) => match ureq_error {
+            ureq::Error::Status(code, _) => *code == 429 || *code >= 500,
+            ureq::Error::Transport(_) => true,
+        },
+        // Reading the response body failed partway (reset, timeout, truncation).
+        FetchDataError::IOError(io_error) => matches!(
+            io_error.kind(),
+            ErrorKind::ConnectionReset
+                | ErrorKind::ConnectionAborted
+                | ErrorKind::BrokenPipe
+                | ErrorKind::TimedOut
+                | ErrorKind::UnexpectedEof
+                | ErrorKind::Interrupted
+                | ErrorKind::WouldBlock
+        ),
+        FetchDataError::FetchDataError(_) => false,
+    }
 }
 
 fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Box<FetchDataError>> {
@@ -514,12 +601,12 @@ fn hash_registry(registry_contents: &str) -> Result<HashMap<PathBuf, String>, Bo
 /// # Ok::<(), Box<FetchDataError>>(())
 /// ```
 #[anyinput]
-pub fn dir_to_file_list(path: AnyPath) -> Result<Vec<std::ffi::OsString>, Box<FetchDataError>> {
+pub fn dir_to_file_list(path: AnyPath) -> Result<Vec<OsString>, Box<FetchDataError>> {
     let file_list = read_dir(path)
-        .map_err(|e| Box::new(e.into()))?
+        .map_err(|error| Box::new(error.into()))?
         .map(|res| res.map(|e| e.file_name()))
-        .collect::<Result<Vec<_>, std::io::Error>>()
-        .map_err(|e| Box::new(e.into()))?;
+        .collect::<Result<Vec<_>, io::Error>>()
+        .map_err(|error| Box::new(error.into()))?;
     Ok(file_list)
 }
 struct Internals {
@@ -553,7 +640,7 @@ impl Internals {
         organization: &str,
         application: &str,
     ) -> Result<PathBuf, Box<FetchDataError>> {
-        let cache_dir = if let Ok(cache_dir) = std::env::var(env_key) {
+        let cache_dir = if let Ok(cache_dir) = env::var(env_key) {
             PathBuf::from(cache_dir)
         } else if let Some(proj_dirs) = ProjectDirs::from(qualifier, organization, application) {
             proj_dirs.cache_dir().to_owned()
@@ -563,7 +650,7 @@ impl Internals {
             ));
         };
         if !cache_dir.exists() {
-            fs::create_dir_all(&cache_dir).map_err(|e| Box::new(e.into()))?;
+            fs::create_dir_all(&cache_dir).map_err(|error| Box::new(error.into()))?;
         }
         Ok(cache_dir)
     }
@@ -579,9 +666,155 @@ static STATIC_FETCH_DATA: FetchData = FetchData::new(
     "Bar App",
 );
 
-/// A sample sample_file. Don't use this. Instead, define your own `sample_file` function
+/// A sample `sample_file`. Don't use this. Instead, define your own `sample_file` function
 /// that knows how to fetch your data files.
 #[anyinput]
 pub fn sample_file(path: AnyPath) -> Result<PathBuf, Box<FetchDataError>> {
     STATIC_FETCH_DATA.fetch_file(path)
+}
+
+#[cfg(test)]
+mod download_tests {
+    use super::{download, fetch, hash_file, DOWNLOAD_ATTEMPTS};
+    use std::{
+        fs,
+        io::{self, BufRead, BufReader, Write},
+        net::TcpListener,
+        path::Path,
+        thread::{self, JoinHandle},
+    };
+    use temp_testdir::TempDir;
+
+    enum Reply {
+        Status(u16),
+        Body(&'static [u8]),
+        /// Promise `len` bytes but send only `body` before closing.
+        Truncated(usize, &'static [u8]),
+    }
+
+    /// Serve one scripted reply per connection on 127.0.0.1, then stop.
+    /// The thread returns how many replies it served.
+    fn serve(replies: Vec<Reply>) -> io::Result<(String, JoinHandle<io::Result<usize>>)> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let url = format!("http://{}/small.fam", listener.local_addr()?);
+        let server = thread::spawn(move || {
+            let mut served = 0;
+            for reply in replies {
+                let (mut stream, _) = listener.accept()?;
+                let mut reader = BufReader::new(stream.try_clone()?);
+                let mut line = String::new();
+                while reader.read_line(&mut line)? > 2 {
+                    line.clear();
+                }
+                let response = match reply {
+                    Reply::Status(code) => format!(
+                        "HTTP/1.1 {code} Simulated\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    )
+                    .into_bytes(),
+                    Reply::Body(body) => [
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        )
+                        .as_bytes(),
+                        body,
+                    ]
+                    .concat(),
+                    Reply::Truncated(len, body) => [
+                        format!("HTTP/1.1 200 OK\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n")
+                            .as_bytes(),
+                        body,
+                    ]
+                    .concat(),
+                };
+                stream.write_all(&response)?;
+                served += 1;
+            }
+            Ok(served)
+        });
+        Ok((url, server))
+    }
+
+    fn served(server: JoinHandle<io::Result<usize>>) -> io::Result<usize> {
+        server.join().expect("server thread panicked")
+    }
+
+    fn file_names(dir: &Path) -> io::Result<Vec<String>> {
+        let mut names = fs::read_dir(dir)?
+            .map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned()))
+            .collect::<io::Result<Vec<String>>>()?;
+        names.sort();
+        Ok(names)
+    }
+
+    #[test]
+    fn retries_server_errors() -> anyhow::Result<()> {
+        let (url, server) = serve(vec![
+            Reply::Status(503),
+            Reply::Status(502),
+            Reply::Body(b"hello"),
+        ])?;
+        let temp_dir = TempDir::default();
+        let path = temp_dir.join("small.fam");
+        download(&url, &path)?;
+        assert_eq!(fs::read(&path)?, b"hello");
+        assert_eq!(served(server)?, 3);
+        Ok(())
+    }
+
+    #[test]
+    fn does_not_retry_not_found() -> anyhow::Result<()> {
+        let (url, server) = serve(vec![Reply::Status(404)])?;
+        let temp_dir = TempDir::default();
+        let path = temp_dir.join("small.fam");
+        assert!(download(&url, &path).is_err());
+        assert_eq!(served(server)?, 1);
+        assert!(!path.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn truncated_body_is_retried_without_leaving_partial_file() -> anyhow::Result<()> {
+        let (url, server) = serve(vec![
+            Reply::Truncated(10, b"0123"),
+            Reply::Body(b"complete"),
+        ])?;
+        let temp_dir = TempDir::default();
+        let path = temp_dir.join("small.fam");
+        fs::write(&path, b"old")?;
+        download(&url, &path)?;
+        assert_eq!(fs::read(&path)?, b"complete");
+        assert_eq!(served(server)?, 2);
+        assert_eq!(file_names(&temp_dir)?, ["small.fam"]);
+        Ok(())
+    }
+
+    #[test]
+    fn gives_up_and_keeps_previous_file() -> anyhow::Result<()> {
+        let replies = (0..DOWNLOAD_ATTEMPTS).map(|_| Reply::Status(503)).collect();
+        let (url, server) = serve(replies)?;
+        let temp_dir = TempDir::default();
+        let path = temp_dir.join("small.fam");
+        fs::write(&path, b"old")?;
+        assert!(download(&url, &path).is_err());
+        assert_eq!(served(server)?, usize::try_from(DOWNLOAD_ATTEMPTS)?);
+        assert_eq!(fs::read(&path)?, b"old");
+        assert_eq!(file_names(&temp_dir)?, ["small.fam"]);
+        Ok(())
+    }
+
+    #[test]
+    fn fetch_replaces_corrupt_local_file() -> anyhow::Result<()> {
+        let (url, server) = serve(vec![Reply::Body(b"good")])?;
+        let temp_dir = TempDir::default();
+        let good = temp_dir.join("good");
+        fs::write(&good, b"good")?;
+        let hash = hash_file(&good)?;
+        let path = temp_dir.join("small.fam");
+        fs::write(&path, b"partial from an old interrupted download")?;
+        fetch(&url, &hash, &path)?;
+        assert_eq!(fs::read(&path)?, b"good");
+        assert_eq!(served(server)?, 1);
+        Ok(())
+    }
 }
